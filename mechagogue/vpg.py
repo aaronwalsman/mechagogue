@@ -82,7 +82,7 @@ def train(
         (key, obs, state), trajectories = jax.lax.scan(
             rollout_step, (key, obs, state), None, train_params.rollout_steps)
         
-        # compute the normalized returns
+        # TODO: compute the normalized returns
         
         # train the policy
         def train_epoch():
