@@ -65,7 +65,7 @@ def train(
             # sample an action
             key, action_key = jrng.split(key)
             action_distribution = policy.apply(train_state.params, obs)
-            action = action_distribution.sample(seed=key)
+            action = action_distribution.sample(seed=action_key)
             
             # take an environment step
             key, step_key = jrng.split(key)
