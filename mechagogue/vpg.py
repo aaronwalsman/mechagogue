@@ -45,6 +45,7 @@ def train(
     reset_env,
     step_env,
     policy,
+    weights
 ):
     
     # reset to get the initial observation and env_state
@@ -84,6 +85,8 @@ def train(
         
         # TODO: compute the normalized returns
         
+        # TODO: train policy; two scans over train_epoch and train_batch
+        # TODO: loss func?
         # train the policy
         def train_epoch():
             
@@ -201,4 +204,4 @@ if __name__ == '__main__':
     key, weight_key = jrng.split(key)
     obs = NomObservation.zero(env_params)
     weights = policy.init(weight_key, obs)
-    train(key, train_params, env_params, reset, step, policy)
+    train(key, train_params, env_params, reset, step, policy, weights)
