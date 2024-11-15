@@ -71,7 +71,7 @@ def train(
             key, step_key = jrng.split(key)
             step_keys = jrng.split(step_key, train_params.parallel_envs)
             obs, state, reward, done = jax.vmap(step_env, in_axes=(0,None,0,0))(
-                key, env_params, state, action)
+                step_keys, env_params, state, action)
             
             # pack
             rollout_state = (key, obs, state)
