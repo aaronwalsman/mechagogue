@@ -70,6 +70,7 @@ def train(
             # take an environment step
             key, step_key = jrng.split(key)
             step_keys = jrng.split(step_key, train_params.parallel_envs)
+            import ipdb; ipdb.set_trace()
             obs, state, reward, done = jax.vmap(step_env, in_axes=(0,None,0,0))(
                 step_keys, env_params, state, action)
             
