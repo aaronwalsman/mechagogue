@@ -65,6 +65,8 @@ def train(
             
             # sample an action
             key, action_key = jrng.split(key)
+            action_keys = jrng.split(action_key, train_params.parallel_envs)
+
             action_distribution = policy.apply(train_state.params, obs)
             action = action_distribution.sample(seed=action_key)
             
@@ -206,4 +208,5 @@ if __name__ == '__main__':
     key, weight_key = jrng.split(key)
     obs = NomObservation.zero(env_params)
     weights = policy.init(weight_key, obs)
+    import ipdb; ipdb.set_trace()
     train(key, train_params, env_params, reset, step, policy, weights)
