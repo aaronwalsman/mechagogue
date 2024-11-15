@@ -50,7 +50,8 @@ def train(
     
     # reset to get the initial observation and env_state
     key, reset_key = jrng.split(key)
-    obs, state = reset_env(reset_key, env_params)
+    reset_keys = jrng.split(reset_key, train_params.parallel_envs)
+    obs, state = jax.vmap(reset_env, in_axes=(0,None))(reset_keys, env_params)
     
     def rollout_train_epoch(epoch_state, _):
         
@@ -70,7 +71,7 @@ def train(
             # take an environment step
             key, step_key = jrng.split(key)
             step_keys = jrng.split(step_key, train_params.parallel_envs)
-            import ipdb; ipdb.set_trace()
+            # import ipdb; ipdb.set_trace
             obs, state, reward, done = jax.vmap(step_env, in_axes=(0,None,0,0))(
                 step_keys, env_params, state, action)
             
