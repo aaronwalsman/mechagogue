@@ -72,14 +72,27 @@ def vpg(
             
             # sample an action
             key, action_key = jrng.split(key)
+            action_keys = jrng.split(action_key, train_params.parallel_envs)
             action_sampler, _ = policy(weights, obs)
-            action = action_sampler(action_key)
+            action = action_sampler(action_keys)
             
             # take an environment step
             key, step_key = jrng.split(key)
             step_keys = jrng.split(step_key, params.parallel_envs)
             next_state, next_obs, reward, next_done = step(
                 step_keys, state, action)
+            
+            #action_keys = jrng.split(action_key, train_params.parallel_envs)
+
+            #action_distribution = policy.apply(train_state.params, obs)
+            #action = action_distribution.sample(seed=action_key)
+            #
+            ## take an environment step
+            #key, step_key = jrng.split(key)
+            #step_keys = jrng.split(step_key, train_params.parallel_envs)
+            ## import ipdb; ipdb.set_trace
+            #obs, state, reward, done = jax.vmap(step_env, in_axes=(0,None,0,0))(
+            #    step_keys, env_params, state, action)
             
             # pack
             rollout_state = (key, next_state, next_obs, next_done)
@@ -111,6 +124,8 @@ def vpg(
             reverse=True,
         )
         
+        # TODO: train policy; two scans over train_epoch and train_batch
+        # TODO: loss func?
         # train the policy
         def train_epoch(train_state, _):
             
@@ -255,5 +270,5 @@ if __name__ == '__main__':
     key, weight_key = jrng.split(key)
     obs = NomObservation.zero(env_params)
     weights = policy.init(weight_key, obs)
-    
+    import ipdb; ipdb.set_trace()
     train(key, train_params, env_params, reset, step, policy, weights)
