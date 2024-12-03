@@ -33,17 +33,49 @@ class VPGParams:
     def num_epochs(self):
         return self.total_steps // (self.parallel_envs * self.rollout_steps)
 
-def vpg(
+@dataclass
+class VPGState:
+    key
+    state
+    obs
+    done
+    weights
+    train_parameters
+
+def reset_vpg(
     key,
     params,
-    reset,
-    step,
-    policy,
+    #reset_env, # <- move to vpg()
+    #step_env,  # <- move to vpg()
+    #policy,    # <- move to vpg()
     weights,
-    train,
+    #train,     # <- move to vpg()
+    train_parameters,
+):
+    #reset_env, step_env = episode_return_wrapper(reset_env, step_ennv)
+    #reset_env, step_env = auto_reset_wrapper(reset_env, step_env)
+    #reset_env, step_env = parallel_env_wrapper(reset, step)
+    
+    key, reset_key = jrng.split(key)
+    reset_keys = jrng.split(reset_key, params.parallel_envs)
+    state, obs = reset(reset_keys)
+    done = jnp.zeros(params.parallel_envs, dtype=jnp.bool)
+    
+    return VPGState(key, state, obs, done, weights, train_parameters)
+    
+
+def step_vpg(vpg_state, _):
+    key,
+    params,
+    #reset,  # <- move to vpg()
+    #step,   # <- move to vpg()
+    #policy, # <- move to vpg()
+    weights,
+    #train,  # <- move to vpg()
     train_parameters,
 ):
     
+    '''
     # vectorize and auto-reset
     # wait, this isn't right, if we're doing episode returns we need
     # something different for auto_resets because otherwise the final
@@ -57,10 +89,12 @@ def vpg(
     reset_keys = jrng.split(reset_key, params.parallel_envs)
     state, obs = reset(reset_keys)
     done = jnp.zeros(params.parallel_envs, dtype=jnp.bool)
+    '''
     
+    '''
     # this function will be scanned in order to train each epoch
     def epoch_step(epoch_state, _):
-        
+    '''
         # unpack
         key, state, obs, done, train_state = epoch_state
         
@@ -181,6 +215,11 @@ def vpg(
         epoch_step, epoch_state, None, params.num_epochs)
     
     breakpoint()
+
+
+def vpg(
+    
+    
 
 
 def vpg_loss(policy, params, obs, action, returns):
