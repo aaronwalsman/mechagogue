@@ -5,11 +5,6 @@ import jax.random as jrng
 import jax.numpy as jnp
 
 from flax.struct import dataclass
-from flax.training.train_state import TrainState
-import flax.linen as nn
-from flax.linen.initializers import constant, orthogonal
-import optax
-import distrax
 
 from mechagogue.wrappers import (
     episode_return_wrapper,
@@ -19,7 +14,7 @@ from mechagogue.wrappers import (
 
 @dataclass
 class VPGParams:
-    total_steps: int = 81920
+    #total_steps: int = 81920 # <- how many steps
     parallel_envs: int = 32
     rollout_steps: int = 256
     training_passes: int = 4
@@ -29,74 +24,52 @@ class VPGParams:
     #max_grad_norm : float = 0.5
     #adam_eps : float = 1e-5
     
-    @property
-    def num_epochs(self):
-        return self.total_steps // (self.parallel_envs * self.rollout_steps)
+    #@property
+    #def num_epochs(self):
+    #    return self.total_steps // (self.parallel_envs * self.rollout_steps)
 
-@dataclass
-class VPGState:
-    key
-    state
-    obs
-    done
-    weights
-    train_parameters
-
-def reset_vpg(
+def vpg(
     key,
     params,
-    #reset_env, # <- move to vpg()
-    #step_env,  # <- move to vpg()
-    #policy,    # <- move to vpg()
-    weights,
-    #train,     # <- move to vpg()
-    train_parameters,
+    reset_env,
+    step_env,
+    policy,
+    reset_weights,
+    step_weights,
+    reset_train_params,
+    step_train_params,
 ):
-    #reset_env, step_env = episode_return_wrapper(reset_env, step_ennv)
-    #reset_env, step_env = auto_reset_wrapper(reset_env, step_env)
-    #reset_env, step_env = parallel_env_wrapper(reset, step)
     
-    key, reset_key = jrng.split(key)
-    reset_keys = jrng.split(reset_key, params.parallel_envs)
-    state, obs = reset(reset_keys)
-    done = jnp.zeros(params.parallel_envs, dtype=jnp.bool)
+    # wrap the environment
+    reset_env, step_env = episode_return_wrapper(reset_env, step_ennv)
+    reset_env, step_env = auto_reset_wrapper(reset_env, step_env)
+    reset_env, step_env = parallel_env_wrapper(reset, step)
     
-    return VPGState(key, state, obs, done, weights, train_parameters)
-    
+    def reset_vpg(
+        key,
+        train_parameters, # things like learning rate, etc.
+    ):
+        
+        # reset the environment
+        key, reset_key = jrng.split(key)
+        reset_keys = jrng.split(reset_key, params.parallel_envs)
+        state, obs = reset(reset_keys)
+        done = jnp.zeros(params.parallel_envs, dtype=jnp.bool)
+        
+        # generate new weights
+        key, weight_key = jrng.split(key)
+        weights = reset_weights(key)
+        
+        return key, state, obs, done, weights, train_parameters
 
-def step_vpg(vpg_state, _):
-    key,
-    params,
-    #reset,  # <- move to vpg()
-    #step,   # <- move to vpg()
-    #policy, # <- move to vpg()
-    weights,
-    #train,  # <- move to vpg()
-    train_parameters,
-):
-    
-    '''
-    # vectorize and auto-reset
-    # wait, this isn't right, if we're doing episode returns we need
-    # something different for auto_resets because otherwise the final
-    # and only important return will be thrown away
-    reset, step = episode_return_wrapper(reset, step)
-    reset, step = auto_reset_wrapper(reset, step)
-    reset, step = parallel_env_wrapper(reset, step)
-    
-    # reset to get the initial environment state and observation
-    key, reset_key = jrng.split(key)
-    reset_keys = jrng.split(reset_key, params.parallel_envs)
-    state, obs = reset(reset_keys)
-    done = jnp.zeros(params.parallel_envs, dtype=jnp.bool)
-    '''
-    
-    '''
-    # this function will be scanned in order to train each epoch
-    def epoch_step(epoch_state, _):
-    '''
-        # unpack
-        key, state, obs, done, train_state = epoch_state
+    def step_vpg(
+        key, state, obs, done, weights, train_parameters = vpg_state
+    ):
+    #    vpg_state,
+    #):
+    #
+    #    # unpack
+    #    key, state, obs, done, weights, train_parameters = vpg_state
         
         # rollout trajectories
         def rollout(rollout_state, _):
@@ -115,18 +88,6 @@ def step_vpg(vpg_state, _):
             step_keys = jrng.split(step_key, params.parallel_envs)
             next_state, next_obs, reward, next_done = step(
                 step_keys, state, action)
-            
-            #action_keys = jrng.split(action_key, train_params.parallel_envs)
-
-            #action_distribution = policy.apply(train_state.params, obs)
-            #action = action_distribution.sample(seed=action_key)
-            #
-            ## take an environment step
-            #key, step_key = jrng.split(key)
-            #step_keys = jrng.split(step_key, train_params.parallel_envs)
-            ## import ipdb; ipdb.set_trace
-            #obs, state, reward, done = jax.vmap(step_env, in_axes=(0,None,0,0))(
-            #    step_keys, env_params, state, action)
             
             # pack
             rollout_state = (key, next_state, next_obs, next_done)
@@ -158,8 +119,9 @@ def step_vpg(vpg_state, _):
             reverse=True,
         )
         
-        # TODO: train policy; two scans over train_epoch and train_batch
-        # TODO: loss func?
+        returns = returns - jnp.mean(returns)
+        returns = returns / (jnp.std(returns) + params.eps)
+        
         # train the policy
         def train_epoch(train_state, _):
             
@@ -190,6 +152,7 @@ def step_vpg(vpg_state, _):
                 
                 return (weights,), loss
             
+            # scan to train on all shuffled batches
             jax.lax.scan(
                 train_batch,
                 (weights,),
@@ -197,37 +160,15 @@ def step_vpg(vpg_state, _):
                 STEPS,
             )
         
+        # scan to train multiple epochs
         jax.lax.scan(
             train_epoch,
             params.training_passes
         )
         
-        # pack
-        epoch_state = key, state, obs, done, train_state
-        
-        return epoch_state
+        return key, state, obs, done, weights, train_parameters
     
-    train_state = None
-    
-    # scan to train each epoch
-    epoch_state = (key, state, obs, done, train_state)
-    (key, state, obs, done, train_state), _ = jax.lax.scan(
-        epoch_step, epoch_state, None, params.num_epochs)
-    
-    breakpoint()
-
-
-def vpg(
-    
-    
-
-
-def vpg_loss(policy, params, obs, action, returns):
-    action_distribution = policy.apply(train_state.params, obs)
-    log_prob = action_distribution.log_prob(action)
-    
-    return jnp.mean(-log_prob * returns)
-            
+    return reset_vpg, step_vpg
 
 if __name__ == '__main__':
     from dirt.examples.nom import (
