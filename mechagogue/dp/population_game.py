@@ -28,4 +28,6 @@ def population_game(
         players = players_fn(params, next_state)
         parents = parents_fn(params, next_state)
         obs = observe_fn(key, params, next_state)
-        return state, obs, players, parents
+        return next_state, obs, players, parents
+    
+    return reset, step
