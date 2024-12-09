@@ -11,8 +11,20 @@ def population_game(
     parents_fn: Callable
 ):
     '''
-    Builds reset and step functions for a population game.  A population game
-    is 
+    Bundles the component functions of a population game into reset and step
+    functions.  The components are:
+    
+    params: configuration parameters that do not change during evaluation.
+    initialize_fn: a function which constructs a new environment state given
+        a random key and params
+    transition_fn: a function which constructs a new environment state given
+        a random key, params, a previous state and actions for each player
+    observe_fn: a function which constructs observations for each player
+        given a random key, params and a state
+    players_fn: a function which lists the current players given params and
+        a state
+    parents_fn: a function which lists the parents of the current players
+        given params and a state
     '''
     def reset(key):
         initialize_key, observe_key = jrng.split(key, 2)
