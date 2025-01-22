@@ -7,35 +7,6 @@ import jax.random as jrng
 
 import chex
 
-def step_auto_reset_OLD(
-    key : chex.PRNGKey,
-    initial_state_distribution : Callable,
-    forward : Callable,
-    state : Any,
-    action : Any,
-):
-
-    # generate rng keys
-    key, initial_state_key, forward_key = jrng.split(key, 3)
-
-    # compute the step observation, state, reward and done
-    obs_step, state_step, reward, done = step_env(
-        step_key, params, state, action)
-
-    # compute the reset observation and state
-    obs_reset, state_reset = reset_env(reset_key, params)
-
-    # select the observation and state from either the step or reset
-    # observation/state depending on done
-    obs, state = jax.tree.map(
-        lambda r, s : jnp.where(jnp.expand_dims(
-            done, axis=tuple(range(1, len(r.shape)))), r, s
-        ),
-        (obs_reset, state_reset),
-        (obs_step, state_step),
-    )
-    return (obs, state, reward, done, *other)
-
 def auto_reset_wrapper(
     reset: Callable,
     step: Callable,
