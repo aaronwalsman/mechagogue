@@ -5,6 +5,10 @@ import jax.random as jrng
 import jax.numpy as jnp
 
 from mechagogue.static_dataclass import static_dataclass
+from mechagogue.tree import ravel_tree, shuffle_tree, batch_tree
+from mechagogue.arg_wrappers import (
+    ignore_unused_args,
+)
 from mechagogue.wrappers import (
     episode_return_wrapper,
     auto_reset_wrapper,
@@ -25,66 +29,70 @@ class VPGConfig:
     eps: float = 1e-5
 
 def vpg(
-    key,
     config,
     reset_env,
     step_env,
-    policy,
-    initialize_params,
-    train_params,
+    init_model_params,
+    model,
+    init_optimizer_params,
+    optimize,
 ):
     
-    # wrap the environment and policy
+    # wrap the environment
     reset_env, step_env = auto_reset_wrapper(reset_env, step_env)
     reset_env, step_env = episode_return_wrapper(reset_env, step_env)
-    reset_env, step_env = parallel_env_wrapper(reset_env, step_env)
+    reset_env, step_env = parallel_env_wrapper(
+        reset_env, step_env, config.parallel_envs)
     
-    def reset_vpg(
-        key,
-    ):
+    init_model_params = ignore_unused_args(init_model_params,
+        ('key',))
+    model = ignore_unused_args(model,
+        ('key', 'x', 'params'))
+    init_optimizer_params = ignore_unused_args(init_optimizer_params,
+        ('key', 'model_params'))
+    optimize = ignore_unused_args(optimize,
+        ('key', 'grad', 'model_params', 'params'))
+    
+    def init(key):
         # generate keys
-        reset_key, param_key = jrng.split(key)
+        reset_key, model_key, optimizer_key = jrng.split(key, 3)
         
         # reset the environment
-        reset_keys = jrng.split(reset_key, config.parallel_envs)
-        state, obs = reset_env(reset_keys)
+        #reset_keys = jrng.split(reset_key, config.parallel_envs)
+        state, obs = reset_env(reset_key)
         done = jnp.zeros(config.parallel_envs, dtype=jnp.bool)
         
-        # generate new params (params)
-        params = initialize_params(param_key)
+        # generate new model params
+        model_params = init_model_params(model_key)
         
-        return state, obs, done, params
+        # generate new optimizer_params
+        optimizer_params = init_optimizer_params(optimizer_key, model_params)
+        
+        return state, obs, done, model_params, optimizer_params
 
-    def step_vpg(
-        key,
-        state,
-        obs,
-        done,
-        params,
-    ):
+    def step(key, state, obs, done, model_params, optimizer_params):
         # rollout trajectories
-        def rollout(rollout_state, key):
+        def rollout(state_obs_done, key):
             
             # unpack
-            state, obs, done = rollout_state
+            state, obs, done = state_obs_done
             episode_returns = state[0]
             
+            model_key, action_key, step_key = jrng.split(key, 3)
+            
             # sample an action
-            key, action_key = jrng.split(key)
-            action_sampler, _ = policy(params, obs)
+            action_sampler, _ = model(model_key, obs, model_params)
             action = action_sampler(action_key)
             
             # take an environment step
-            key, step_key = jrng.split(key)
-            step_keys = jrng.split(step_key, config.parallel_envs)
+            #step_keys = jrng.split(step_key, config.parallel_envs)
             next_state, next_obs, reward, next_done = step_env(
-                step_keys, state, action)
+                step_key, state, action)
             
-            # pack
-            rollout_state = (next_state, next_obs, next_done)
-            transition = (obs, action, reward, done)
-            
-            return rollout_state, transition
+            return (
+                (next_state, next_obs, next_done),
+                (obs, action, reward, done),
+            )
         
         # scan rollout_step to accumulate trajectories
         key, rollout_key = jrng.split(key)
@@ -92,30 +100,7 @@ def vpg(
             rollout,
             (state, obs, done),
             jrng.split(rollout_key, config.rollout_steps),
-            config.rollout_steps,
         )
-        
-        # DAPHNE TODO:
-        # Can you help verify that these rollouts are correct?  The simple
-        # target environment that we are testing with now should produce data
-        # that is very easy to interpret.
-        # Note that our reset wrapper includes the final "terminal" state in
-        # the trajectory (rather than skipping over it like the default gym
-        # wrapper), below is me trying to make sure my book-keeping
-        # is all correct.  Each set of brackets [...] is one transition,
-        # o is observation, a is actino, r is reward and the last number is
-        # done.  In the example below there are five transitions, where the
-        # agent first makes three decisions, the last one causes termination,
-        # then a new trajectory starts.  Note that we have one transition
-        # [oT aT 0 (1)] which represents the transition from the last terminal
-        # state to the next initial state which the agent has no control over.
-        # this means we will turn off the loss for these transitions later
-        # (I already have a stab at implementing this later in the loss fn,
-        # but not sure if it's
-        # right:
-        # [o1 a1 r1 (0)] [o2 a2 r2 (0)] [o3 a3 r3 (0)] [oT aT 0 (1)] [o1 a1...]
-        #  g1 = r1        g2 = r1+r2     g3 = r1+r2+r3  gT = 0
-        #  loss = 1       loss = 1       loss = 1       loss = 0
         
         # unpack trajectories
         traj_obs, traj_action, traj_reward, traj_done = trajectories
@@ -127,7 +112,6 @@ def vpg(
             running_returns = returns * (1. - done) * config.discount
             return running_returns, returns
         
-        # scan to accumulate returns
         _, traj_returns = jax.lax.scan(
             compute_returns,
             jnp.zeros(config.parallel_envs),
@@ -142,9 +126,17 @@ def vpg(
         # train on the trajectory data
         def train_epoch(params, key):
             
+            model_params, optimizer_params = params
+            
             # shuffle and batch the data
             # generate a shuffle permutation
             key, shuffle_key = jrng.split(key)
+            o, a, r, d = ravel_tree(
+                (traj_obs, traj_action, traj_returns, traj_done), 0, 2)
+            o, a, r, d = shuffle_tree(shuffle_key, (o,a,r,d))
+            o, a, r, d = batch_tree((o,a,r,d), config.batch_size)
+            
+            '''
             num_transitions = config.parallel_envs * config.rollout_steps
             shuffle_permutation = jrng.permutation(
                 shuffle_key, num_transitions)
@@ -173,34 +165,45 @@ def vpg(
                 return_batches,
                 done_batches,
             )
+            '''
             
-            # train the policy on all batches
-            def train_batch(params, batch):
+            # train the model on all batches
+            def train_batch(params, key_obs_action_returns_done):
                 
                 # unpack
-                key, obs, action, returns, done = batch
+                model_params, optimizer_params = params
+                key, obs, action, returns, done = key_obs_action_returns_done
                 
                 # compute the loss
-                def vpg_loss(params, obs, action, returns, done):
-                    _, action_logp = policy(params, obs)
+                def vpg_loss(
+                    model_key, model_params, obs, action, returns, done
+                ):
+                    _, action_logp = model(model_key, obs, model_params)
                     logp = action_logp(action)
-                    policy_loss = jnp.mean(-logp * returns * ~done)
-                    return policy_loss
+                    loss = jnp.mean(-logp * returns * ~done)
+                    jax.debug.print('lp {lp} r {r} d {d} a {a}', lp=logp, r=returns, d=done, a=action)
+                    return loss
                 
-                loss, grad = jax.value_and_grad(vpg_loss, argnums=0)(
-                    params, obs, action, returns, done)
+                model_key, optimizer_key = jrng.split(key)
+                loss, grad = jax.value_and_grad(vpg_loss, argnums=1)(
+                    model_key, model_params, obs, action, returns, done)
+                
+                jax.debug.print('mp {mp}', mp=model_params)
                 
                 # apply the gradients
-                params = train_params(key, params, grad)
+                model_params, optimizer_params = optimize(
+                    optimizer_key, grad, model_params, optimizer_params)
                 
-                return params, loss
+                return (model_params, optimizer_params), loss
             
             # scan to train on all shuffled batches
-            params, batch_losses = jax.lax.scan(
+            num_batches, _ = r.shape
+            key, batch_key = jrng.split(key)
+            k = jrng.split(batch_key, num_batches)
+            (model_params, optimizer_params), batch_losses = jax.lax.scan(
                 train_batch,
-                params,
-                batches,
-                num_batches,
+                (model_params, optimizer_params),
+                (k, o, a, r, d),
             )
             
             return params, batch_losses
@@ -208,18 +211,18 @@ def vpg(
         # scan to train multiple epochs
         key, epoch_key = jrng.split(key)
         epoch_keys = jrng.split(epoch_key, config.training_epochs)
-        params, epoch_losses = jax.lax.scan(
+        (model_params, optimizer_params), epoch_losses = jax.lax.scan(
             train_epoch,
-            params,
+            (model_params, optimizer_params),
             epoch_keys,
             config.training_epochs,
         )
         
         losses = epoch_losses.reshape(-1)
         
-        return state, obs, done, params, losses
+        return (state, obs, done, model_params, optimizer_params), losses
     
-    return reset_vpg, step_vpg
+    return init, step
 
 if __name__ == '__main__':
     from dirt.examples.nom import (
@@ -230,7 +233,7 @@ if __name__ == '__main__':
     env_config = NomConfig()
     reset, step = nom(env_config)
     
-    class NomPolicy(nn.Module):
+    class NomModel(nn.Module):
         activation: str = "tanh"
 
         @nn.compact
@@ -298,9 +301,9 @@ if __name__ == '__main__':
             
             return action_distribution
     
-    policy = NomPolicy()
+    model = NomModel()
     key, params_key = jrng.split(key)
     obs = NomObservation.zero(env_config)
-    params = policy.init(params_key, obs)
+    params = model.init(params_key, obs)
     import ipdb; ipdb.set_trace()
-    train(key, train_config, env_config, reset, step, policy, params)
+    train(key, train_config, env_config, reset, step, model, params)
