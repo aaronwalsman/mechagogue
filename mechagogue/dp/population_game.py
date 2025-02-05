@@ -2,44 +2,70 @@ from typing import Any, Callable
 
 import jax.random as jrng
 
+from mechagogue.arg_wrappers import ignore_unused_args
+
 def population_game(
-    config: Any,
-    initialize_fn: Callable,
-    transition_fn: Callable,
-    observe_fn: Callable,
-    players_fn: Callable,
-    parents_fn: Callable
+    init_state: Callable,
+    transition: Callable,
+    observe: Callable,
+    breed: Callable,
+    alive: Callable,
+    children: Callable
 ):
     '''
     Bundles the component functions of a population game into reset and step
     functions.  The components are:
     
-    config: configuration parameters that do not change during evaluation.
-    initialize_fn: a function which constructs a new environment state given
-        a random key and config
-    transition_fn: a function which constructs a new environment state given
-        a random key, config, a previous state and actions for each player
-    observe_fn: a function which constructs observations for each player
-        given a random key, config and a state
-    players_fn: a function which lists the current players given config and
-        a state
-    parents_fn: a function which lists the parents of the current players
-        given config and a state
+    init_state: a function which constructs a new environment state given
+        a random key
+    transition: a function which constructs a new environment state given
+        a random key, a previous state and actions for each player
+    observe: a function which constructs observations for each player
+        given a random key and a state
+    alive: a function which returns a boolean vector indicating which
+        players are currently alive given a state
+    children: a function which lists the parents of new children that
+        were generated during the transition from one state to another
     '''
+    
+    init_state = ignore_unused_args(init_state,
+        ('key',))
+    transition = ignore_unused_args(transition,
+        ('key', 'state', 'action'))
+    observe = ignore_unused_args(observe,
+        ('key', 'state'))
+    alive = ignore_unused_args(alive,
+        ('state',))
+    children = ignore_unused_args(children,
+        ('state', 'next_state'))
+    
     def reset(key):
-        initialize_key, observe_key = jrng.split(key, 2)
-        state = initialize_fn(initialize_key, config)
-        players = players_fn(config, state)
-        parents = parents_fn(config, state)
-        obs = observe_fn(observe_key, config, state)
-        return state, obs, players, parents
+        # generate new keys
+        state_key, observe_key = jrng.split(key)
+        
+        # generate the first state, observation and live vector
+        state = init_state(state_key)
+        obs = observe(observe_key, state)
+        
+        # determine the live players
+        live = alive(state)
+        
+        # return
+        return state, obs, live
     
     def step(key, state, action):
-        transition_key, observe_key = jrng.split(key, 2)
-        next_state = transition_fn(transition_key, config, state, action)
-        players = players_fn(config, next_state)
-        parents = parents_fn(config, next_state)
-        obs = observe_fn(key, config, next_state)
-        return next_state, obs, players, parents
+        # generate new keys
+        transition_key, observe_key = jrng.split(key)
+        
+        # generate the next state and observation
+        next_state = transition(transition_key, state, action)
+        obs = observe(observe_key, next_state)
+        
+        # determine the live players and new children
+        live = alive(next_state)
+        child = children(state, next_state)
+        
+        # return
+        return next_state, obs, live, child
     
     return reset, step
