@@ -6,8 +6,8 @@ from mechagogue.static_dataclass import static_dataclass
 from mechagogue.tree import (
     tree_len, shuffle_tree, pad_tree_batch_size, batch_tree, tree_getitem)
 from mechagogue.arg_wrappers import ignore_unused_args
-from mechagogue.population import population_step
-from mechagogue.eval.batch_eval import batch_eval
+from mechagogue.population import population_model
+from mechagogue.eval.batch_eval import batch_evaluator
 
 @static_dataclass
 class GAConfig:
@@ -22,8 +22,7 @@ def ga(
     config,
     init_model_params,
     model,
-    init_mutate_params,
-    mutate,
+    breed,
     loss_function,
     test_function,
 ):
@@ -33,24 +32,19 @@ def ga(
         ('key',))
     model = ignore_unused_args(model,
         ('key', 'x', 'params'))
-    init_mutate_params = ignore_unused_args(init_mutate_params,
-        ('key', 'model_params'))
-    mutate = ignore_unused_args(mutate,
-        ('key', 'model_params', 'mutate_params'))
+    step_population = population_model(breed)
     loss_function = ignore_unused_args(loss_function,
         ('pred', 'y', 'mask'))
-    test_function = ignore_unused_args(test_function,
-        ('pred', 'y', 'mask'))
+    
+    evaluator = batch_evaluator(model, test_function, config.batch_size)
+    population_evaluator = jax.vmap(evaluator, in_axes=(0, None, None, 0))
     
     def init(key):
-        model_key, mutate_key = jrng.split(key)
-        model_keys = jrng.split(model_key, config.population_size)
+        model_keys = jrng.split(key, config.population_size)
         model_params = jax.vmap(init_model_params)(model_keys)
-        mutate_params = init_mutate_params(mutate_key, model_params)
-        return model_params, mutate_params
+        return model_params
     
-    def train(key, x, y, model_params, mutate_params):
-        population_size = tree_len(model_params)
+    def train(key, x, y, model_params):
         
         # shuffle and batch the data
         if config.shuffle:
@@ -63,8 +57,7 @@ def ga(
         x, y, mask = batch_tree(
             (x, y, mask), config.batch_size, axis=1)
         
-        def train_batch(params, key_x_y_mask):
-            model_params, mutate_params = params
+        def train_batch(model_params, key_x_y_mask):
             key, x, y, mask = key_x_y_mask
             
             def loss_step(fitness, key_x_y_mask):
@@ -82,7 +75,7 @@ def ga(
             key, step_keys = step_keys[0], step_keys[1:]
             fitness, _ = jax.lax.scan(
                 loss_step,
-                jnp.zeros(population_size),
+                jnp.zeros(config.population_size),
                 (step_keys, x, y, mask),
             )
             
@@ -92,37 +85,25 @@ def ga(
                 fitness, config.population_size-config.dunces)
             
             key, children_key, population_key = jrng.split(key, 3)
-            survived = jnp.zeros(population_size, dtype=jnp.bool)
-            survived = survived.at[elite_ids].set(True)
+            alive = jnp.zeros(config.population_size, dtype=jnp.bool)
+            alive = alive.at[elite_ids].set(True)
             num_children = config.population_size-config.elites
             children = jrng.choice(
                 children_key, non_dunce_ids, shape=(num_children, 1))
-            _, model_params, mutate_params = population_step(
-                population_key,
-                survived,
-                children,
-                model_params,
-                mutate,
-                mutate_params,
-            )
+            _, model_params = step_population(
+                population_key, alive, children, model_params)
             
-            return (model_params, mutate_params), fitness
+            return model_params, fitness
         
         num_batches = tree_len(x)
         batch_keys = jrng.split(key, num_batches)
-        (model_params, mutate_params), fitness = jax.lax.scan(
-            train_batch,
-            (model_params, mutate_params),
-            (batch_keys, x, y, mask),
-        )
-        return model_params, mutate_params, fitness
+        model_params, fitness = jax.lax.scan(
+            train_batch, model_params,(batch_keys, x, y, mask))
+        return model_params, fitness
     
     def test(key, x, y, model_params):
-        population_size = tree_len(model_params)
-        keys = jrng.split(key, population_size)
-        multi_eval =  jax.vmap(
-            batch_eval, in_axes=(0, None, 0, None, None, None, None))
-        return multi_eval(
-            keys, model, model_params, test_function, config.batch_size, x, y)
+        num_models = tree_len(model_params)
+        keys = jrng.split(key, num_models)
+        return population_evaluator(keys, x, y, model_params)
     
     return init, train, test

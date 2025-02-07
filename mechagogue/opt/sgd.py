@@ -16,35 +16,35 @@ def sgd(
                 return None
         return jax.tree.map(init_leaf, model_params)
     
-    def optimize_sgd(grad, model_params, optimizer_params):
-        def optimize_leaf(leaf_grad, leaf_model_param, leaf_optimizer_param):
-            if weight_decay:
-                leaf_grad = leaf_grad + leaf_model_params * weight_decay
-            
-            if momentum:
-                leaf_optimizer_param = (
-                    leaf_optimizer_param * momentum + leaf_grad * (1.-damping))
-                leaf_velocity = leaf_optimizer_param
-            else:
-                leaf_velocity = leaf_grad
-            
-            if nesterov:
-                leaf_update = leaf_grad + leaf_velocity * momentum
-            else:
-                leaf_update = leaf_velocity
-            
-            leaf_model_param = leaf_model_param - leaf_update * learning_rate
-            
-            return leaf_model_param, leaf_optimizer_param
+    def optimize_sgd(grad, model_params, params):
+        if weight_decay:
+            def leaf_weight_decay(leaf_grad, leaf_model_param):
+                return leaf_grad + leaf_model_param * weight_decay
+            grad = jax.tree.map(leaf_weight_decay, grad, model_params)
         
-        joined_tree = jax.tree.map(
-            optimize_leaf, grad, model_params, optimizer_params)
-        model_params, optimizer_params = jax.tree.transpose(
-            jax.tree.structure(grad),
-            jax.tree.structure(('*', '*')),
-            joined_tree,
-        )
+        # TODO: is this right?
+        if momentum:
+            def leaf_momentum(leaf_grad, leaf_param):
+                return (leaf_param * momentum + leaf_grad * (1.-damping))
+            params = jax.tree.map(leaf_momentum, grad, params)
         
-        return model_params, optimizer_params
+            velocity = params
+        else:
+            velocity = grad
+        
+        if nesterov:
+            def leaf_nesterov(leaf_grad, leaf_velocity, leaf_param):
+                return leaf_grad + leaf_velocity * momentum
+            model_update = jax.tree.map(leaf_nesterov, grad, velocity, params)
+        else:
+            model_update = velocity
+        
+        def apply_leaf_update(leaf_model_param, leaf_update):
+            return leaf_model_param - leaf_update * learning_rate
+        
+        model_params = jax.tree.map(
+            apply_leaf_update, model_params, model_update)
+        
+        return model_params, params
     
     return init_sgd, optimize_sgd

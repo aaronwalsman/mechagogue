@@ -9,19 +9,16 @@ def normal_mutate(
     auto_scale=False
 ):
     
-    def init():
-        return None
-    
-    def mutate(key, model_params):
+    def mutate(key, params):
         def mutate_leaf(key, leaf):
             num_parents = leaf.shape[0]
             leaf = jnp.sum(leaf, axis=0) / num_parents
             delta = jrng.normal(key, shape=leaf.shape, dtype=leaf.dtype)
             return leaf + learning_rate * delta
         
-        keys = tree_key(key, jax.tree.structure(model_params))
-        model_params = jax.tree.map(mutate_leaf, keys, model_params)
+        keys = tree_key(key, jax.tree.structure(params))
+        params = jax.tree.map(mutate_leaf, keys, params)
         
-        return model_params, None
+        return params
     
-    return init, mutate
+    return mutate

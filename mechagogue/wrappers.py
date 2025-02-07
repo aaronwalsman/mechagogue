@@ -7,6 +7,8 @@ import jax.random as jrng
 
 import chex
 
+from mechagogue.arg_wrappers import ignore_unused_args, split_random_keys
+
 def auto_reset_wrapper(
     reset: Callable,
     step: Callable,
@@ -40,8 +42,8 @@ def auto_reset_wrapper(
             lambda r, s : jnp.where(jnp.expand_dims(
                 previous_done, axis=tuple(range(len(r.shape)))), r, s  
             ),
-            (reset_state, reset_obs, reward, done),
-            (step_state, step_obs, 0., False),
+            (reset_state, reset_obs, jnp.zeros_like(reward), jnp.zeros_like(done)),
+            (step_state, step_obs, reward, done),
         )
         return (wrapped_state, done), obs, reward, done
     
@@ -110,5 +112,14 @@ def episode_return_wrapper(
 def parallel_env_wrapper(
     reset: Callable,
     step: Callable,
+    num_parallel_envs: int,
 ):
-    return jax.vmap(reset, in_axes=(0,)), jax.vmap(step, in_axes=(0,0,0))
+    reset = ignore_unused_args(reset, ('key',))
+    reset = jax.vmap(reset, in_axes=(0,))
+    reset = split_random_keys(reset, num_parallel_envs)
+    
+    step = ignore_unused_args(step, ('key', 'state', 'action'))
+    step = jax.vmap(step, in_axes=(0,0,0))
+    step = split_random_keys(step, num_parallel_envs)
+    
+    return reset, step

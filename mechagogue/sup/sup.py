@@ -2,20 +2,25 @@ import jax
 import jax.numpy as jnp
 import jax.random as jrng
 
+from mechagogue.static_dataclass import static_dataclass
 from mechagogue.tree import (
     tree_len, shuffle_tree, pad_tree_batch_size, batch_tree)
 from mechagogue.arg_wrappers import ignore_unused_args
 from mechagogue.eval.batch_eval import batch_eval
 
+@static_dataclass
+class SupConfig:
+    batch_size: int = 64
+    shuffle: bool = True
+
 def sup(
+    config,
     init_model_params,
     model,
     init_optimizer_params,
     optimize,
     loss_function,
     test_function,
-    batch_size,
-    shuffle=True,
 ):
     
     # wrap the provided functions
@@ -26,7 +31,7 @@ def sup(
     init_optimizer_params = ignore_unused_args(init_optimizer_params,
         ('key', 'model_params'))
     optimize = ignore_unused_args(optimize,
-        ('key', 'grad', 'model_params', 'optimizer_params'))
+        ('key', 'grad', 'model_params', 'params'))
     loss_function = ignore_unused_args(loss_function,
         ('pred', 'y', 'mask'))
     test_function = ignore_unused_args(test_function,
@@ -39,11 +44,11 @@ def sup(
         return model_params, optimizer_params
     
     def train(key, x, y, model_params, optimizer_params):
-        if shuffle:
+        if config.shuffle:
             key, shuffle_key = jrng.split(key)
             x, y = shuffle_tree(shuffle_key, (x, y))
-        (x, y), mask = pad_tree_batch_size((x, y), batch_size)
-        x, y, mask = batch_tree((x, y, mask), batch_size)
+        (x, y), mask = pad_tree_batch_size((x, y), config.batch_size)
+        x, y, mask = batch_tree((x, y, mask), config.batch_size)
         
         def train_batch(params, key_x_y_mask):
             model_params, optimizer_params = params
@@ -73,6 +78,6 @@ def sup(
     
     def test(key, x, y, model_params):
         return batch_eval(
-            key, model, model_params, test_function, batch_size, x, y)
+            key, model, model_params, test_function, config.batch_size, x, y)
     
     return init, train, test

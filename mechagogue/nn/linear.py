@@ -37,7 +37,7 @@ def embedding_layer(
     dtype=jnp.float32,
 ):
     def init_params(key):
-        weight_shape = (num_embeddings, out_channels)
+        weight_shape = (num_embeddings, channels)
         weight = init_weight(key, shape=weight_shape, dtype=dtype)
         return weight
     

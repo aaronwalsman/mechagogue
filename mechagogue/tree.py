@@ -22,11 +22,14 @@ def tree_additem(tree, index, tree_value):
         return leaf.at[index].add(leaf_value)
     return jax.tree.map(leaf_setitem, tree)
 
-def tree_collate(tree, player_groups):
-    def leaf_collate(leaf):
-        g, k, *c = leaf.shape
-        return leaf.reshape(g*k, *c)
-    return jax.tree.map(leaf_collate, tree)
+def ravel_tree(tree, start_axis=0, end_axis=None):
+    def leaf_ravel(leaf):
+        c = leaf.shape
+        e = end_axis
+        if e is None:
+            e = len(c)
+        return leaf.reshape(*c[:start_axis], -1, *c[e:])
+    return jax.tree.map(leaf_ravel, tree)
 
 def tree_key(key, tree_structure):
     keys = tuple(jrng.split(key, tree_structure.num_leaves))

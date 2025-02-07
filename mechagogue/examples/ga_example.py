@@ -4,7 +4,7 @@ import jax.random as jrng
 from mechagogue.ga.ga import ga, GAConfig
 import mechagogue.sup.tasks.classify as classify
 from mechagogue.nn.mlp import mlp
-from mechagogue.mutate.normal import normal_mutate
+from mechagogue.breed.normal import normal_mutate
 from mechagogue.tree import tree_getitem
 from mechagogue.data.example_data import make_example_data
 
@@ -14,7 +14,7 @@ def train():
     
     in_channels = 16
     hidden_channels = 32
-    num_classes = 50
+    num_classes = 10
     num_train = 50000
     num_test = 10000
     num_epochs = 20
@@ -40,7 +40,7 @@ def train():
         hidden_channels=hidden_channels,
         out_channels=num_classes
     )
-    init_mutate, mutate = normal_mutate(
+    breed = normal_mutate(
         learning_rate=learning_rate,
     )
     
@@ -53,20 +53,18 @@ def train():
         ga_config,
         init_mlp,
         model_mlp,
-        init_mutate,
-        mutate,
+        breed,
         classify.loss,
         classify.accuracy,
     )
     
     key, init_key = jrng.split(key)
-    model_params, mutate_params = init_ga(init_key)
+    model_params = init_ga(init_key)
     
-    def epoch(params, key):
-        model_params, mutate_params = params
+    def epoch(model_params, key):
         train_key, test_key = jrng.split(key)
-        model_params, mutate_params, fitness = train_ga(
-            train_key, train_x, train_y, model_params, mutate_params)
+        model_params, fitness = train_ga(
+            train_key, train_x, train_y, model_params)
         
         _, elites = jax.lax.top_k(fitness[-1], ga_config.elites)
         elite_model_params = tree_getitem(model_params, elites)
@@ -74,18 +72,15 @@ def train():
         accuracy = test_ga(test_key, test_x, test_y, elite_model_params)
         jax.debug.print('Accuracy: {a}', a=accuracy)
         
-        return (model_params, mutate_params), (fitness, accuracy)
+        return model_params, (fitness, accuracy)
     
     epoch_keys = jrng.split(key, num_epochs)
-    (model_params, mutate_params), (fitness, accuracy) = jax.lax.scan(
-        epoch,
-        (model_params, mutate_params),
-        epoch_keys,
-    )
+    model_params, (fitness, accuracy) = jax.lax.scan(
+        epoch, model_params, epoch_keys)
     fitness = fitness.reshape(-1)
     
-    return model_params, mutate_params, fitness, accuracy
+    return model_params, fitness, accuracy
 
 if __name__ == '__main__':
     train = jax.jit(train)
-    model_params, mutate_params, losses, accuracy = train()
+    model_params, losses, accuracy = train()

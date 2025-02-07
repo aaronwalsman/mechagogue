@@ -17,7 +17,7 @@ def static_dataclass(cls):
         
         field_names = (field.name for field in fields(cls))
         return cls(**dict(zip(field_names, children)))
-
+    
     cls.tree_flatten = tree_flatten
     cls.tree_unflatten = tree_unflatten
     

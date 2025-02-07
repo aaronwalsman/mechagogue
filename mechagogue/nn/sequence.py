@@ -27,7 +27,6 @@ def layer_sequence(
         layer_keys = jrng.split(key, num_layers)
         params = []
         for layer_key, init_layer in zip(layer_keys, init_layers):
-            #init_layer_params, _ = layer
             layer_params = init_layer(layer_key)
             params.append(layer_params)
         return params
@@ -97,3 +96,60 @@ def repeat_shared_layer(
 
 repeat_shared_residual_layer = partial(
     repeat_shared_layer, accumulate=jax.lax.add)
+
+def multi_head_tuple(*layers):
+    num_layers = len(layers)
+    
+    init_layers = [
+        ignore_unused_args(init_layer, ('key',))
+        for init_layer, _ in layers
+    ]
+    
+    model_layers = [
+        ignore_unused_args(model_layer, ('key', 'x', 'params'))
+        for _, model_layer in layers
+    ]
+    
+    def init_params(key):
+        head_keys = jrng.split(key, num_layers)
+        return (init_layer(head_key)
+            for init_layer, head_key
+            in zip(init_layers, head_keys)
+        )
+    
+    def model(key, x, params):
+        head_keys = jrng.split(key, num_layers)
+        return (
+            model_layer(head_key, x, head_params)
+            for model_layer, head_key, head_params
+            in zip(model_layers, head_keys, params)
+        )
+
+def multi_head_dict(**layers):
+    num_layers = len(layers)
+    
+    init_layers = {
+        name : ignore_unused_args(init_layer, ('key',))
+        for name, (init_layer, _) in layers
+    }
+    model_layers = {
+        name : ignore_unused_args(model_layer, ('key', 'x', 'params'))
+        for name, (_, model_layer) in layers}
+    }
+    
+    def init_params(key):
+        head_keys = jrng.split(key, num_layers)
+        return {name : init_layer(head_key)
+            for (name, init_layer), head_key
+            in zip(init_layers.items(), head_keys)
+        }
+    
+    def model(key, x, params):
+        head_keys = jrng.split(key, num_layers)
+        return {
+            name : model_layer(head_key, x, head_params)
+            for (name, model_layer), head_key, head_params
+            in zip(model_layers.items(), head_keys, params)
+        }
+    
+    return init_params, model
