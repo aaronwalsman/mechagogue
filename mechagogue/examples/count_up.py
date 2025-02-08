@@ -15,14 +15,14 @@ def countup(n):
         return jnp.zeros((), dtype=jnp.int32)
     
     def transition(state, action):
-        return jnp.where(action == state+1, action, n)
+        return jnp.where(action == state+1, jnp.array(action), jnp.array(n))
     
     def reward(state, action):
         r = (action == (state + 1)).astype(jnp.float32)
         return r
     
-    def terminal(state, action, next_state):
-        return next_state == n
+    def terminal(state):
+        return state == n
     
     return mdp(init_state, transition, reward, terminal)
 
@@ -33,11 +33,12 @@ def countup_dqn(key, n=4):
         parallel_envs=8,
         replay_buffer_size=32*10000,
         discount=0.9,
+        target_update=0.1
     )
     
-    init_model_params, model = embedding_layer(n, n+1)
+    init_model_params, model = embedding_layer(n+1, n+1)
     
-    init_optimizer_params, optimize = sgd(learning_rate=3e-4)
+    init_optimizer_params, optimize = sgd(learning_rate=1e-2)
     
     def random_action(key):
         return jrng.randint(key, minval=0, maxval=(n+1), shape=())
@@ -56,8 +57,11 @@ def countup_dqn(key, n=4):
     init_key, step_key = jrng.split(key)
     dqn_state = init_dqn(init_key)
     
+    print('before training')
+    print(dqn_state.model_params[0])
+    
     def train_epoch(dqn_state, key):
-        dqn_state, loss = step_dqn(key, *dqn_state)
+        dqn_state, loss = step_dqn(key, dqn_state)
         return dqn_state, loss
     
     dqn_state, losses = jax.lax.scan(
@@ -66,10 +70,9 @@ def countup_dqn(key, n=4):
         jrng.split(step_key, 100000),
     )
     
-    model_params = dqn_state[3]
-    target_params = dqn_state[4]
-    print(model_params[0])
-    print(target_params[0])
+    print('after training')
+    print(dqn_state.model_params[0])
+    print(dqn_state.target_params[0])
 
 def countup_vpg(key, n=3):
     reset_env, step_env = countup(n)
