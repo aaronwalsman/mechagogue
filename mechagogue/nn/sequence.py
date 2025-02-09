@@ -134,7 +134,7 @@ def multi_head_dict(**layers):
     }
     model_layers = {
         name : ignore_unused_args(model_layer, ('key', 'x', 'params'))
-        for name, (_, model_layer) in layers}
+        for name, (_, model_layer) in layers
     }
     
     def init_params(key):
