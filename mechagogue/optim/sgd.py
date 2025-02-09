@@ -8,7 +8,7 @@ def sgd(
     nesterov=False,
     weight_decay=0,
 ):
-    def init_sgd(model_params):
+    def init(model_params):
         def init_leaf(leaf):
             if momentum:
                 return jnp.zeros_like(leaf)
@@ -16,7 +16,7 @@ def sgd(
                 return None
         return jax.tree.map(init_leaf, model_params)
     
-    def optimize_sgd(grad, model_params, params):
+    def optim(grad, model_params, optim_params):
         if weight_decay:
             def leaf_weight_decay(leaf_grad, leaf_model_param):
                 return leaf_grad + leaf_model_param * weight_decay
@@ -26,16 +26,17 @@ def sgd(
         if momentum:
             def leaf_momentum(leaf_grad, leaf_param):
                 return (leaf_param * momentum + leaf_grad * (1.-damping))
-            params = jax.tree.map(leaf_momentum, grad, params)
+            optim_params = jax.tree.map(leaf_momentum, grad, optim_params)
         
-            velocity = params
+            velocity = optim_params
         else:
             velocity = grad
         
         if nesterov:
             def leaf_nesterov(leaf_grad, leaf_velocity, leaf_param):
                 return leaf_grad + leaf_velocity * momentum
-            model_update = jax.tree.map(leaf_nesterov, grad, velocity, params)
+            model_update = jax.tree.map(
+                leaf_nesterov, grad, velocity, optim_params)
         else:
             model_update = velocity
         
@@ -45,6 +46,6 @@ def sgd(
         model_params = jax.tree.map(
             apply_leaf_update, model_params, model_update)
         
-        return model_params, params
+        return model_params, optim_params
     
-    return init_sgd, optimize_sgd
+    return init, optim

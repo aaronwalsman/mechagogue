@@ -11,7 +11,7 @@ def linear_layer(
     init_bias=zero,
     dtype=jnp.float32,
 ):
-    def init_params(key):
+    def init(key):
         weight_shape = (in_channels, out_channels)
         weight = init_weights(key, shape=weight_shape, dtype=dtype)
         if use_bias:
@@ -21,14 +21,14 @@ def linear_layer(
             bias = None
         return weight, bias
     
-    def model(x, params):
-        weight, bias = params
+    def model(x, state):
+        weight, bias = state
         x = x @ weight
         if bias is not None:
             x = x + bias
         return x
     
-    return init_params, model
+    return init, model
 
 def embedding_layer(
     num_embeddings,
@@ -36,17 +36,17 @@ def embedding_layer(
     init_weight=kaiming,
     dtype=jnp.float32,
 ):
-    def init_params(key):
+    def init(key):
         weight_shape = (num_embeddings, channels)
         weight = init_weight(key, shape=weight_shape, dtype=dtype)
         return weight
     
-    def model(x, params):
-        weight = params
+    def model(x, state):
+        weight = state
         x = weight[x]
         return x
     
-    return init_params, model
+    return init, model
 
 def conv_layer(
     in_channels,
@@ -59,7 +59,7 @@ def conv_layer(
     init_bias=zero,
     dtype=jnp.float32,
 ):
-    def init_params(key):
+    def init(key):
         weight_shape = kernel_size + (in_channels, out_channels)
         weight = init_weight(key, shape=weight_shape, dtype=dtype)
         if use_bias:
@@ -69,8 +69,8 @@ def conv_layer(
             bias = None
         return weight, bias
     
-    def model(x, params):
-        weight, bias = params
+    def model(x, state):
+        weight, bias = state
         x = lax.conv_general_dilated(
             x,
             weight,
@@ -81,4 +81,4 @@ def conv_layer(
         x = x + bias
         return x
     
-    return init_params, model
+    return init, model

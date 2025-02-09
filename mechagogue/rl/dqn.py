@@ -35,9 +35,9 @@ class DQNState:
     env_state : Any = None
     obs : Any = None
     done : Any = False
-    model_params : Any = None
-    target_params : Any = None
-    optimizer_params : Any = None
+    model_state : Any = None
+    target_state : Any = None
+    optim_state : Any = None
     replay_buffer : Any = None
     current_step : int = 0
 
@@ -45,10 +45,10 @@ def dqn(
     config,
     reset_env,
     step_env,
-    init_model_params,
+    init_model,
     model,
-    init_optimizer_params,
-    optimize,
+    init_optim,
+    optim,
     random_action,
 ):
     
@@ -63,19 +63,19 @@ def dqn(
         reset_env, step_env, config.parallel_envs)
     
     # parallelize the model over the number of q functions
-    init_model_params = ignore_unused_args(init_model_params, ('key',))
-    init_model_params = jax.vmap(init_model_params)
-    init_model_params = split_random_keys(
-        init_model_params, config.num_q_models)
-    single_model = ignore_unused_args(model, ('key', 'x', 'params'))
+    init_model = ignore_unused_args(init_model, ('key',))
+    init_model = jax.vmap(init_model)
+    init_model = split_random_keys(
+        init_model, config.num_q_models)
+    single_model = ignore_unused_args(model, ('key', 'x', 'state'))
     model = jax.vmap(single_model, in_axes=(0,None,0))
     model = split_random_keys(model, config.num_q_models)
     
     # wrap the optimizer
-    init_optimizer_params = ignore_unused_args(
-        init_optimizer_params, ('key', 'model_params'))
-    optimize = ignore_unused_args(
-        optimize, ('key', 'grad', 'model_params', 'params'))
+    init_optim = ignore_unused_args(
+        init_optim, ('key', 'model_state'))
+    optim = ignore_unused_args(
+        optim, ('key', 'grad', 'model_state', 'optim_state'))
     
     # parallelize the action sampler
     random_action = ignore_unused_args(random_action, ('key',))
@@ -83,15 +83,15 @@ def dqn(
     random_action = split_random_keys(random_action, config.parallel_envs)
     
     def init(key):
-        reset_key, model_key, optimizer_key, replay_key = jrng.split(key, 4)
+        reset_key, model_key, optim_key, replay_key = jrng.split(key, 4)
         
         env_state, obs = reset_env(reset_key)
         done = jnp.zeros(config.parallel_envs, dtype=jnp.bool)
         
-        # build the model, target and optimizer params
-        model_params = init_model_params(model_key)
-        target_params = model_params
-        optimizer_params = init_optimizer_params(optimizer_key, model_params)
+        # build the model, target and optimizer state
+        model_state = init_model(model_key)
+        target_state = model_state
+        optim_state = init_optim(optim_key, model_state)
         
         # fill the replay buffer with data from the random policy initially
         def fill_replay_buffer(state_obs_done, key):
@@ -124,15 +124,15 @@ def dqn(
             env_state,
             obs,
             done,
-            model_params,
-            target_params,
-            optimizer_params,
+            model_state,
+            target_state,
+            optim_state,
             replay_buffer,
             0,
         )
     
     def step(key, state):
-        single_model_params = tree_getitem(state.model_params, 0)
+        single_model_state = tree_getitem(state.model_state, 0)
         
         # generate new data
         def rollout(state_obs_done, key):
@@ -140,7 +140,7 @@ def dqn(
             model_key, random_key, selector_key, step_key = jrng.split(key, 4)
             
             # sample an action according to the epsilon-greedy policy
-            q = single_model(model_key, obs, single_model_params)
+            q = single_model(model_key, obs, single_model_state)
             greedy = jnp.argmax(q, axis=-1)
             random = random_action(random_key)
             selector = jrng.bernoulli(
@@ -173,11 +173,11 @@ def dqn(
         replay_buffer = tree_setitem(state.replay_buffer, indices, trajectories)
         
         # train
-        def train_batch(params, key):
-            model_params, target_params, optimizer_params = params
+        def train_batch(model_target_optim_state, key):
+            model_state, target_state, optim_state = model_target_optim_state
             
             # sample data from the replay buffer
-            data_key, target_key, model_key, optimizer_key = jrng.split(key, 4)
+            data_key, target_key, model_key, optim_key = jrng.split(key, 4)
             replay_buffer_indices = jrng.choice(
                 data_key,
                 config.replay_buffer_size,
@@ -187,24 +187,24 @@ def dqn(
                 replay_buffer, replay_buffer_indices)
             
             # compute the q targets
-            next_q = model(target_key, next_obs, target_params)
+            next_q = model(target_key, next_obs, target_state)
             next_q = next_q.min(axis=0)
             next_v = next_q.max(axis=-1)
             target = reward + (~next_done) * config.discount * next_v
             
             # compute the loss and gradients
-            def q_loss(model_key, model_params, obs, action, done, target):
-                q = model(model_key, obs, model_params)
+            def q_loss(model_key, model_state, obs, action, done, target):
+                q = model(model_key, obs, model_state)
                 q = q[:,jnp.arange(config.batch_size), action]
                 loss = (~done) * (q - target)**2
                 return loss.mean()
             
             loss, grad = jax.value_and_grad(q_loss, argnums=1)(
-                model_key, model_params, obs, action, done, target)
+                model_key, model_state, obs, action, done, target)
             
             # apply the gradients
-            model_params, optimizer_params = optimize(
-                optimizer_key, grad, model_params, optimizer_params)
+            model_state, optim_state = optim(
+                optim_key, grad, model_state, optim_state)
             
             # update the target network
             def interpolate_leaf(target_leaf, model_leaf):
@@ -212,26 +212,26 @@ def dqn(
                     target_leaf * (1. - config.target_update) +
                     model_leaf * config.target_update
                 )
-            target_params = jax.tree.map(
-                interpolate_leaf, target_params, model_params)
+            target_state = jax.tree.map(
+                interpolate_leaf, target_state, model_state)
             
-            return (model_params, target_params, optimizer_params), loss
+            return (model_state, target_state, optim_state), loss
         
         key, batch_key = jrng.split(key)
-        params, batch_losses = jax.lax.scan(
+        model_target_optim_state, batch_losses = jax.lax.scan(
             train_batch,
-            (state.model_params, state.target_params, state.optimizer_params),
+            (state.model_state, state.target_state, state.optim_state),
             jrng.split(batch_key, config.batches_per_step),
         )
-        model_params, target_params, optimizer_params = params
+        model_state, target_state, optim_state = model_target_optim_state
         
         return DQNState(
             env_state,
             obs,
             done,
-            model_params,
-            target_params,
-            optimizer_params,
+            model_state,
+            target_state,
+            optim_state,
             replay_buffer,
             state.current_step + 1,
         ), batch_losses

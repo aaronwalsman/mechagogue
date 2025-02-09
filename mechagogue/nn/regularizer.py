@@ -9,4 +9,4 @@ def dropout_layer(p_drop):
             return jnp.where(drop, 0, leaf)
         return jax.tree.map(drop_leaf, x)
     
-    return lambda key : None, model
+    return lambda : None, model

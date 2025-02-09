@@ -19,30 +19,30 @@ def layer_sequence(
     ]
     
     model_layers = [
-        ignore_unused_args(model_layer, ('key', 'x', 'params'))
+        ignore_unused_args(model_layer, ('key', 'x', 'state'))
         for _, model_layer in layers
     ]
     
-    def init_params(key):
+    def init(key):
         layer_keys = jrng.split(key, num_layers)
-        params = []
+        state = []
         for layer_key, init_layer in zip(layer_keys, init_layers):
-            layer_params = init_layer(layer_key)
-            params.append(layer_params)
-        return params
+            layer_state = init_layer(layer_key)
+            state.append(layer_state)
+        return state
     
-    def model(key, x, params):
+    def model(key, x, state):
         layer_keys = jrng.split(key, num_layers)
         x0 = x
-        for layer_key, model_layer, layer_params in zip(
-            layer_keys, model_layers, params
+        for layer_key, model_layer, layer_state in zip(
+            layer_keys, model_layers, state
         ):
-            x1 = model_layer(layer_key, x0, layer_params)
+            x1 = model_layer(layer_key, x0, layer_state)
             x0 = accumulate(x0, x1)
         
         return x0
     
-    return init_params, model
+    return init, model
 
 residual_layer_sequence = partial(layer_sequence, accumulate=jax.lax.add)
 
@@ -51,26 +51,26 @@ def repeat_layer(
     repeat,
     accumulate=lambda x0, x1 : x1,
 ):
-    init_layer_params, model_layer = layer
-    init_layer_params = ignore_unused_args(init_layer_params, ('key',))
-    model_layer = ignore_unused_args(model_layer, ('key', 'x', 'params'))
+    init_layer, model_layer = layer
+    init_layer = ignore_unused_args(init_layer, ('key',))
+    model_layer = ignore_unused_args(model_layer, ('key', 'x', 'state'))
     
-    def init_params(key):
+    def init(key):
         keys = jrng.split(key, repeat)
         return jax.vmap(init_layer)(keys)
     
-    def model(key, x, params):
-        def layer_step(x0, key_params):
-            key, params = key_params
-            x1 = layer_model(key, x0, params)
+    def model(key, x, state):
+        def layer_step(x0, key_state):
+            key, state = key_state
+            x1 = layer_model(key, x0, state)
             x1 = accumulate(x0, x1)
             return x1, None
         
         keys = jrng.split(key, repeat)
-        x, _ = jax.lax.scan(layer_step, x, (keys, params))
+        x, _ = jax.lax.scan(layer_step, x, (keys, state))
         return x
     
-    return init_params, model
+    return init, model
 
 repeat_residual_layer = partial(repeat_layer, accumulate=jax.lax.add)
 
@@ -79,12 +79,12 @@ def repeat_shared_layer(
     repeat,
     accumulate=lambda x0, x1 : x1,
 ):
-    init_params, model_layer = layer
-    model_layer = ignore_unused_args(model_layer, ('key', 'x', 'params'))
+    init_layer, model_layer = layer
+    model_layer = ignore_unused_args(model_layer, ('key', 'x', 'state'))
     
-    def model(key, x, params):
+    def model(key, x, state):
         def layer_step(x0, key):
-            x1 = layer_model(key, x0, params)
+            x1 = layer_model(key, x0, state)
             x1 = accumulate(x0, x1)
             return x1, None
         
@@ -92,7 +92,7 @@ def repeat_shared_layer(
         x, _ = jax.lax.scan(layer_step, x, keys)
         return x
     
-    return init_params, model
+    return init_layer, model
 
 repeat_shared_residual_layer = partial(
     repeat_shared_layer, accumulate=jax.lax.add)
@@ -106,23 +106,23 @@ def multi_head_tuple(*layers):
     ]
     
     model_layers = [
-        ignore_unused_args(model_layer, ('key', 'x', 'params'))
+        ignore_unused_args(model_layer, ('key', 'x', 'state'))
         for _, model_layer in layers
     ]
     
-    def init_params(key):
+    def init(key):
         head_keys = jrng.split(key, num_layers)
         return (init_layer(head_key)
             for init_layer, head_key
             in zip(init_layers, head_keys)
         )
     
-    def model(key, x, params):
+    def model(key, x, state):
         head_keys = jrng.split(key, num_layers)
         return (
-            model_layer(head_key, x, head_params)
-            for model_layer, head_key, head_params
-            in zip(model_layers, head_keys, params)
+            model_layer(head_key, x, head_state)
+            for model_layer, head_key, head_state
+            in zip(model_layers, head_keys, state)
         )
 
 def multi_head_dict(**layers):
@@ -133,23 +133,23 @@ def multi_head_dict(**layers):
         for name, (init_layer, _) in layers
     }
     model_layers = {
-        name : ignore_unused_args(model_layer, ('key', 'x', 'params'))
-        for name, (_, model_layer) in layers}
+        name : ignore_unused_args(model_layer, ('key', 'x', 'state'))
+        for name, (_, model_layer) in layers
     }
     
-    def init_params(key):
+    def init(key):
         head_keys = jrng.split(key, num_layers)
         return {name : init_layer(head_key)
             for (name, init_layer), head_key
             in zip(init_layers.items(), head_keys)
         }
     
-    def model(key, x, params):
+    def model(key, x, state):
         head_keys = jrng.split(key, num_layers)
         return {
-            name : model_layer(head_key, x, head_params)
-            for (name, model_layer), head_key, head_params
-            in zip(model_layers.items(), head_keys, params)
+            name : model_layer(head_key, x, head_state)
+            for (name, model_layer), head_key, head_state
+            in zip(model_layers.items(), head_keys, state)
         }
     
-    return init_params, model
+    return init, model

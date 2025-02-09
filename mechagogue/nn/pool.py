@@ -39,11 +39,11 @@ def avgpool_layer(
     for k in kernel_size:
         kernel_elements *= k
     
-    init_params, model_pool = pool_layer(
+    init_pool, model_pool = pool_layer(
         jax.lax.add, 0, kernel_size=kernel_size, **kwargs)
     
     def model(x):
         x = model_pool(x)
         return x / kernel_elements
     
-    return init_params, model
+    return init_pool, model
