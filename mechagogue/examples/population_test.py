@@ -164,8 +164,9 @@ def go(key):
     train_state = reset_train(init_key)
     
     def train_block(train_state, key):
-        
-        
+        '''
+            One epoch.
+        '''
         alive = train_state.players != -1
         offsets = (
             train_state.env_state.sites[:,None] - 
