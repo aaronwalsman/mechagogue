@@ -22,9 +22,6 @@ class MultiSiteConfig:
 class MultiSiteState:
     sites : jnp.array = None
     players : jnp.array = None
-    #parents : jnp.array = None
-    #parent_locations : jnp.array = None
-    #child_locations : jnp.array = None
     parents : jnp.array = None
     children : jnp.array = None
     next_player_id : int = 0

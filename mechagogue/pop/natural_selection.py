@@ -52,7 +52,7 @@ def natural_selection(
         ('key',))
     init_model_params = jax.vmap(init_model_params)
     model = ignore_unused_args(model,
-        ('key', 'x', 'params'))
+        ('key', 'x', 'state'))
     model = jax.vmap(model)
     breed = ignore_unused_args(breed,
         ('key', 'params'))
