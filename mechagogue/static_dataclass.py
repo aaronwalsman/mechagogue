@@ -18,8 +18,17 @@ def static_dataclass(cls):
         field_names = (field.name for field in fields(cls))
         return cls(**dict(zip(field_names, children)))
     
+    def replace(obj, **kwargs):
+        field_dict = {
+            field.name : getattr(obj, field.name)
+            for field in fields(obj)
+        }
+        field_dict.update(kwargs)
+        return cls(**field_dict)
+    
     cls.tree_flatten = tree_flatten
     cls.tree_unflatten = tree_unflatten
+    cls.replace = replace
     
     tree_util.register_pytree_node_class(cls)
 
