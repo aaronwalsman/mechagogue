@@ -71,6 +71,11 @@ def conv_layer(
     
     def model(x, state):
         weight, bias = state
+        
+        num_dims = len(x.shape)
+        if num_dims == 3:
+            x = x[None,:,:,:]
+        
         x = lax.conv_general_dilated(
             x,
             weight,
@@ -78,7 +83,12 @@ def conv_layer(
             padding=padding,
             dimension_numbers=('NHWC', 'HWIO', 'NHWC'),
         )
-        x = x + bias
+        
+        if num_dims == 3:
+            x = x[0]
+        
+        if bias is not None:
+            x = x + bias
         return x
     
     return init, model
