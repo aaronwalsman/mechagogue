@@ -13,7 +13,8 @@ def ignore_unused_args(function, argnames):
             assert name not in argnames
             continue
         if name not in argnames:
-            assert param.default is not inspect.Parameter.empty
+            assert param.default is not inspect.Parameter.empty, (
+                f'argument "{name}" was not provided and has no default!')
         else:
             existing_argnames.add(name)
     
