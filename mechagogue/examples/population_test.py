@@ -1,3 +1,5 @@
+from typing import Any
+
 import jax
 import jax.random as jrng
 import jax.numpy as jnp
@@ -6,6 +8,7 @@ from mechagogue.dp.population_game import population_game
 from mechagogue.pop.natural_selection import (
     NaturalSelectionConfig, natural_selection)
 from mechagogue.static_dataclass import static_dataclass
+from mechagogue.player_list import birthday_player_list
 
 @static_dataclass
 class MultiSiteConfig:
@@ -20,14 +23,18 @@ class MultiSiteConfig:
 
 @static_dataclass
 class MultiSiteState:
-    sites : jnp.array = None
-    players : jnp.array = None
-    parents : jnp.array = None
-    children : jnp.array = None
-    next_player_id : int = 0
-    energy : jnp.array = None
+    sites : jnp.array
+    player_list : Any
+    #next_new_player_id : int
+    #players : jnp.array
+    #parents : jnp.array
+    #children : jnp.array
+    energy : jnp.array
 
 def multisite(config):
+    
+    init_player_list, add_players, remove_players = birthday_player_list(
+        config.initial_players, config.max_players)
     
     def init_state(key):
         
@@ -35,14 +42,11 @@ def multisite(config):
         sites = jrng.normal(key, shape=(config.num_sites, config.num_channels))
         
         # initialize players and parents
-        players = jnp.full((config.max_players,), -1, dtype=jnp.int32)
-        players = players.at[:config.initial_players].set(
-            jnp.arange(config.initial_players))
+        #next_new_player_id, players, children = init_population(
+        player_list = init_player_list
+            config.initial_players, config.max_players)
         parents = jnp.full(
             (config.max_players, 1), -1, dtype=jnp.int32)
-        children = jnp.full(
-            (config.max_players,), -1, dtype=jnp.int32)
-        next_player_id = config.initial_players
         
         # initialize energy
         energy = jnp.zeros((config.max_players,))
@@ -50,27 +54,28 @@ def multisite(config):
         
         return MultiSiteState(
             sites,
-            players,
-            parents,
-            children,
-            next_player_id,
+            player_list,
+            #next_new_player_id,
+            #players,
+            #parents,
+            #children,
             energy,
         )
     
     def transition(state, action):
         
-        # first subtract out the energy costs of living
+        # metabolism
+        # - first subtract out the energy costs of living
         energy = state.energy - config.energy_loss_per_step
-        
-        # kill off anything that has run out of energy
-        players = jnp.where(energy > 0., state.players, -1)
         energy = jnp.clip(energy, min=0.)
         
+        # kill off anything that has run out of energy
+        deaths = energy <= 0.
+        
         # divide the new energy between each player
-        alive = players != -1
         offsets = state.sites[:,None] - action[None,:]
         distances = jnp.linalg.norm(offsets, axis=-1)
-        distances = jnp.where(alive, distances, jnp.inf)
+        distances = jnp.where(deaths, jnp.inf, distances)
         
         # proportional
         '''
@@ -86,47 +91,45 @@ def multisite(config):
         
         # determine who will reproduce this round
         reproduce = energy > config.reproduce_energy
+        births = jnp.sum(reproduce)
+        '''
         parents, = jnp.nonzero(
             reproduce,
             size=config.max_players,
             fill_value=config.max_players,
         )
         parents = parents[:,None]
-        num_new_players = jnp.sum(reproduce)
-        
-        # find locations for the new children
-        all_locations = jnp.arange(config.max_players)
-        active_children = all_locations < num_new_players
-        
-        available_locations, = jnp.nonzero(
-            ~alive, size=config.max_players, fill_value=config.max_players)
-        children = jnp.where(
-            active_children, available_locations, config.max_players)
-        child_ids = jnp.where(
-            active_children, all_locations + state.next_player_id, -1)
-        players = players.at[children].set(child_ids)
+        '''
+        player_list = step_players(player_list, births, deaths)
         
         # update the energy based on reproduction
         energy = energy.at[parents].add(-config.initial_energy)
         energy = energy.at[children].add(config.initial_energy)
         
-        next_player_id = state.next_player_id + num_new_players
+        #next_new_player_id = state.next_new_player_id + num_new_players
         return MultiSiteState(
             state.sites,
-            players,
-            parents,
-            children,
-            next_player_id,
+            player_list,
+            #next_new_player_id,
+            #players,
+            #parents,
+            #children,
             energy,
         )
     
     def observe(state):
         return None
     
-    def player_info(state):
-        return state.players, state.parents, state.children
+    def active_players(state):
+        return state.player_list.birthdays != -1
     
-    return population_game(init_state, transition, observe, player_info)
+    def family_info(next_state):
+        birthdays = next_state.player_list.birthdays
+        current_time = next_state.player_list.current_time
+        children, = jnp.nonzero(birthdays == current_time)
+        parents
+    
+    return population_game(init_state, transition, observe, active_players)
 
 epochs = 10
 steps_per_epoch = 1000
@@ -141,20 +144,20 @@ env_config = MultiSiteConfig(
 )
 reset_env, step_env = multisite(env_config)
 
-def init_model_params(key):
+def init_model_state(key):
     return jrng.normal(key, shape=(num_channels))
 
-def model(params):
-    return params
+def model(state):
+    return state
 
-def breed(key, params):
-    return params[0] + jrng.normal(key, shape=params[0].shape) * mutation
+def breed(key, state):
+    return state[0] + jrng.normal(key, shape=state[0].shape) * mutation
 
 reset_train, step_train = natural_selection(
     NaturalSelectionConfig(),
     reset_env,
     step_env,
-    init_model_params,
+    init_model_state,
     model,
     breed,
 )
