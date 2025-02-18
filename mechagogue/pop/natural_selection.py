@@ -18,21 +18,22 @@ import jax.random as jrng
 
 from mechagogue.static_dataclass import static_dataclass
 from mechagogue.arg_wrappers import ignore_unused_args
+from mechagogue.tree import tree_getitem, tree_setitem
 
 @static_dataclass
-class NaturalSelectionConfig:
-    pass
+class NaturalSelectionParams:
+    max_population : int
     #rollout_steps : int = 256
     #children_per_chunk = None
 
 @static_dataclass
 class NaturalSelectionState:
-    env_state : Any = None
-    obs : Any = None
-    model_params : Any = None
+    env_state : Any
+    obs : Any
+    model_state : Any
 
 def natural_selection(
-    config,
+    params,
     reset_env,
     step_env,
     init_model_state,
@@ -63,12 +64,12 @@ def natural_selection(
         # reset the environment
         env_state, obs, players = reset_env(env_key)
         
-        # build the model_params
-        max_population_size, = players.shape
-        model_keys = jrng.split(model_key, max_population_size)
-        model_params = init_model_state(model_keys)
+        # build the model_state
+        #max_population, = players.shape
+        model_keys = jrng.split(model_key, params.max_population)
+        model_state = init_model_state(model_keys)
         
-        return NaturalSelectionState(env_state, obs, model_params)
+        return NaturalSelectionState(env_state, obs, model_state), players
     
     def step(key, state):
         
@@ -76,20 +77,34 @@ def natural_selection(
         action_key, env_key, breed_key = jrng.split(key, 3)
         
         # compute actions
-        max_population_size = state.obs.shape[0]
-        action_keys = jrng.split(action_key, max_population_size)
-        actions = model(action_keys, state.obs, state.model_params)
+        #breakpoint()
+        #max_population = THING
+        action_keys = jrng.split(action_key, params.max_population)
+        actions = model(action_keys, state.obs, state.model_state)
         
         # step the environment
-        env_state, obs, players, parents, children = step_env(
+        env_state, obs, players, parent_locations, child_locations = step_env(
             env_key, state.env_state, actions)
         
-        # update the model params
-        max_num_children, = children.shape
+        # update the model state
+        max_num_children, = child_locations.shape
         breed_keys = jrng.split(breed_key, max_num_children)
-        child_data = breed(breed_keys, state.model_params[parents])
-        model_params = state.model_params.at[children].set(child_data)
+        #parent_state = jax.tree.map(
+        #    lambda leaf : leaf[parent_locations], state.model_state)
+        parent_state = tree_getitem(state.model_state, parent_locations)
+        child_state = breed(breed_keys, parent_state)
+        #model_state = state.model_state.at[child_locations].set(child_data)
+        #model_state = jax.tree.map(
+        #    lambda leaf, leaf_child : leaf.at[child_locations].set(leaf_child),
+        #    model_state,
+        #    child_data,
+        #)
+        model_state = tree_setitem(
+            state.model_state, child_locations, child_state)
         
-        return NaturalSelectionState(env_state, obs, model_params)
+        next_state = state.replace(
+            env_state=env_state, obs=obs, model_state=model_state)
+        
+        return next_state, players, parent_locations, child_locations
     
     return init, step
