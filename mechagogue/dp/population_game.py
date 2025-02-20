@@ -63,6 +63,6 @@ def population_game(
     
     def get_logging_info(state, action, next_state):
 
-        return 
+        return action
     
     return reset, step

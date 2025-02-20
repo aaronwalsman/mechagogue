@@ -116,7 +116,7 @@ def natural_selection(
     
     def get_logging_info(state, action, next_state):
 
-        return 
+        return action
 
     
     return init, step
