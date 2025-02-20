@@ -84,9 +84,6 @@ def natural_selection(
         action_keys = jrng.split(action_key, params.max_population)
         actions = model(action_keys, state.obs, state.model_state)
 
-        print('actions', actions)
-        import pdb; pdb.set_trace()
-        wandb.log(actions, step=state)
         # step the environment
         env_state, obs, players, parent_locations, child_locations = step_env(
             env_key, state.env_state, actions)
