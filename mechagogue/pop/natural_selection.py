@@ -20,6 +20,8 @@ from mechagogue.static_dataclass import static_dataclass
 from mechagogue.arg_wrappers import ignore_unused_args
 from mechagogue.tree import tree_getitem, tree_setitem
 
+import wandb
+
 @static_dataclass
 class NaturalSelectionParams:
     max_population : int
@@ -81,7 +83,10 @@ def natural_selection(
         #max_population = THING
         action_keys = jrng.split(action_key, params.max_population)
         actions = model(action_keys, state.obs, state.model_state)
-        
+
+        print('actions', actions)
+        import pdb; pdb.set_trace()
+        wandb.log(actions, step=state)
         # step the environment
         env_state, obs, players, parent_locations, child_locations = step_env(
             env_key, state.env_state, actions)
@@ -105,6 +110,13 @@ def natural_selection(
         next_state = state.replace(
             env_state=env_state, obs=obs, model_state=model_state)
         
-        return next_state, players, parent_locations, child_locations
+        logging_info = get_logging_info(state, actions, next_state)
+        
+        return next_state, logging_info, players, parent_locations, child_locations
+    
+    def get_logging_info(state, action, next_state):
+
+        return 
+
     
     return init, step
