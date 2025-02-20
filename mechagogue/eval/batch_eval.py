@@ -10,17 +10,17 @@ def batch_evaluator(
     batch_size,
 ):
     
-    model = ignore_unused_args(model, ('key', 'x', 'params'))
+    model = ignore_unused_args(model, ('key', 'x', 'state'))
     evaluate = ignore_unused_args(evaluate, ('pred', 'y', 'mask'))
     
-    def batch_eval(key, x, y, model_params):
+    def batch_eval(key, x, y, model_state):
         (x, y), valid = pad_tree_batch_size((x,y), batch_size)
         x, y, valid = batch_tree((x,y,valid), batch_size)
         
         def eval_step(mean_total, key_x_y_valid):
             mean, total = mean_total
             key, x, y, valid = key_x_y_valid
-            pred = model(key, x, model_params)
+            pred = model(key, x, model_state)
             step_mean = evaluate(pred, y, valid)
             new_evals = jnp.sum(valid)
             

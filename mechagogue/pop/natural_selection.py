@@ -20,13 +20,9 @@ from mechagogue.static_dataclass import static_dataclass
 from mechagogue.arg_wrappers import ignore_unused_args
 from mechagogue.tree import tree_getitem, tree_setitem
 
-import wandb
-
 @static_dataclass
 class NaturalSelectionParams:
     max_population : int
-    #rollout_steps : int = 256
-    #children_per_chunk = None
 
 @static_dataclass
 class NaturalSelectionState:
@@ -41,6 +37,7 @@ def natural_selection(
     init_model_state,
     model,
     breed,
+    make_report = lambda : None,
 ):
     
     # wrap the provided functions
@@ -57,6 +54,14 @@ def natural_selection(
     breed = ignore_unused_args(breed,
         ('key', 'state'))
     breed = jax.vmap(breed)
+    make_report = ignore_unused_args(make_report, (
+        'state',
+        'actions',
+        'next_state',
+        'players',
+        'parent_locations',
+        'child_locations',
+    ))
     
     def init(key):
         
@@ -67,7 +72,6 @@ def natural_selection(
         env_state, obs, players = reset_env(env_key)
         
         # build the model_state
-        #max_population, = players.shape
         model_keys = jrng.split(model_key, params.max_population)
         model_state = init_model_state(model_keys)
         
@@ -79,8 +83,6 @@ def natural_selection(
         action_key, env_key, breed_key = jrng.split(key, 3)
         
         # compute actions
-        #breakpoint()
-        #max_population = THING
         action_keys = jrng.split(action_key, params.max_population)
         actions = model(action_keys, state.obs, state.model_state)
 
@@ -91,29 +93,25 @@ def natural_selection(
         # update the model state
         max_num_children, = child_locations.shape
         breed_keys = jrng.split(breed_key, max_num_children)
-        #parent_state = jax.tree.map(
-        #    lambda leaf : leaf[parent_locations], state.model_state)
         parent_state = tree_getitem(state.model_state, parent_locations)
         child_state = breed(breed_keys, parent_state)
-        #model_state = state.model_state.at[child_locations].set(child_data)
-        #model_state = jax.tree.map(
-        #    lambda leaf, leaf_child : leaf.at[child_locations].set(leaf_child),
-        #    model_state,
-        #    child_data,
-        #)
         model_state = tree_setitem(
             state.model_state, child_locations, child_state)
         
+        # build the next state
         next_state = state.replace(
             env_state=env_state, obs=obs, model_state=model_state)
         
-        logging_info = get_logging_info(state, actions, next_state)
+        # log
+        report = make_report(
+            state,
+            actions,
+            next_state,
+            players,
+            parent_locations,
+            child_locations,
+        )
         
-        return next_state, logging_info, players, parent_locations, child_locations
-    
-    def get_logging_info(state, action, next_state):
-
-        return action
-
+        return next_state, report
     
     return init, step
