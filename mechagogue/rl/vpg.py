@@ -26,7 +26,6 @@ class VPGParams:
     eps: float = 1e-5
 
 def vpg(
-    key,
     params,
     reset_env,
     step_env,
