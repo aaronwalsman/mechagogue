@@ -1,6 +1,8 @@
+from typing import Any
+
 from dataclasses import dataclass, fields, is_dataclass
 
-from jax import tree_util
+import jax
 
 def static_dataclass(cls):
     cls = dataclass(frozen=True)(cls)
@@ -26,10 +28,65 @@ def static_dataclass(cls):
         field_dict.update(kwargs)
         return cls(**field_dict)
     
+    def add_commandline_args(obj, parser, prefixes=()):
+        cls = obj.__class__
+        for field in fields(cls):
+            name_components = prefixes + (field.name,)
+            argname = f'--{"-".join(name_components)}'
+            default = getattr(obj, field.name)
+            if hasattr(default, 'add_commandline_args'):
+                extended_prefixes = prefixes + (field.name,)
+                default.add_commandline_args(parser, prefixes=extended_prefixes)
+            else:
+                parser.add_argument(argname, type=field.type, default=default)
+         
+        return parser
+    
+    def from_commandline_args(obj, args, prefixes=()):
+        cls = obj.__class__
+        constructor_args = {}
+        for field in fields(cls):
+            name_components = prefixes + (field.name,)
+            attrname = "_".join(name_components)
+            default = getattr(obj, field.name)
+            if hasattr(default, 'from_commandline_args'):
+                constructor_args[field.name] = default.from_commandline_args(
+                    args, prefixes=name_components)
+            else:
+                constructor_args[field.name] = getattr(args, attrname)
+        
+        return cls(**constructor_args)
+       
     cls.tree_flatten = tree_flatten
     cls.tree_unflatten = tree_unflatten
     cls.replace = replace
+    cls.add_commandline_args = add_commandline_args
+    cls.from_commandline_args = from_commandline_args
     
-    tree_util.register_pytree_node_class(cls)
+    jax.tree_util.register_pytree_node_class(cls)
 
     return cls
+
+if __name__ == '__main__':
+    
+    import argparse
+    
+    @static_dataclass
+    class A:
+        hello : str = 'world'
+    
+    @static_dataclass
+    class B:
+        help_me : str = 'jon_keto'
+        int_field : int = 1
+        float_field : float = 2.
+        a : Any = A('earth')
+    
+    b = B()
+    parser = argparse.ArgumentParser()
+    b.add_commandline_args(parser)
+    args = parser.parse_args()
+    b_commandline = b.from_commandline_args(args)
+    
+    print('Original:', b)
+    print('Commandline:', b_commandline)

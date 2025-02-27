@@ -13,10 +13,6 @@ def auto_reset_wrapper(
     reset: Callable,
     step: Callable,
 ):
-    #@dataclass
-    #class AutoResetState:
-    #    wrapped_state: Any
-    #    terminal: bool = False
     
     def wrapped_reset(
         key: chex.PRNGKey,
@@ -34,18 +30,19 @@ def auto_reset_wrapper(
         # generate keys
         step_key, reset_key = jrng.split(key)
         
-        step_state, step_obs, reward, done = step(
+        # step and reset the wrapped environment
+        step_state, step_obs, done, reward = step(
             step_key, wrapped_state, action)
         reset_state, reset_obs = reset(reset_key)
+        reset_done = jnp.zeros_like(done)
+        reset_reward = jnp.zeros_like(reward)
         
-        wrapped_state, obs, reward, done = jax.tree.map(
-            lambda r, s : jnp.where(jnp.expand_dims(
-                previous_done, axis=tuple(range(len(r.shape)))), r, s  
-            ),
-            (reset_state, reset_obs, jnp.zeros_like(reward), jnp.zeros_like(done)),
-            (step_state, step_obs, reward, done),
+        wrapped_state, obs, done, reward = jax.tree.map(
+            lambda r, s : jnp.where(previous_done, r, s),
+            (reset_state, reset_obs, reset_done, reset_reward),
+            (step_state, step_obs, done, reward),
         )
-        return (wrapped_state, done), obs, reward, done
+        return (wrapped_state, done), obs, done, reward
     
     return wrapped_reset, wrapped_step
 
@@ -59,8 +56,8 @@ def auto_reset_wrapper_overwrite_terminal(
         final_state: Any
     
     def wrapped_reset(key):
-        state, obs = reset(key)
-        return (state, state), obs
+        wrapped_state, obs = reset(key)
+        return (wrapped_state, wrapped_state), obs
     
     def wrapped_step(
         key: chex.PRNGKey,
@@ -72,7 +69,7 @@ def auto_reset_wrapper_overwrite_terminal(
         
         # step and reset the wrapped environment
         env_state, _ = state
-        step_state, step_obs, reward, done = step(step_key, env_state, action)
+        step_state, step_obs, done, reward = step(step_key, env_state, action)
         reset_state, reset_obs = reset(reset_key)
         
         state, obs = jax.tree.map(
@@ -82,30 +79,24 @@ def auto_reset_wrapper_overwrite_terminal(
             (reset_state, reset_obs),
             (step_state, step_obs),
         )
-        return (state, step_state), obs, reward, done
+        return (state, step_state), obs, done, reward
     
-    #return reset, partial(step_auto_reset, reset=reset, step=step)
     return wrapped_reset, wrapped_step
 
 def episode_return_wrapper(
     reset: Callable,
     step: Callable,
 ):
-    #@dataclass
-    #class EpisodeReturnState:
-    #    wrapped_state: Any
-    #    returns: float = 0.
-    
     def wrapped_reset(key):
         wrapped_state, obs = reset(key)
         return (wrapped_state, 0.), obs
     
     def wrapped_step(key, state, action):
         wrapped_state, returns = state
-        wrapped_state, obs, reward, done = step(
+        wrapped_state, obs, done, reward = step(
             key, wrapped_state, action)
         state = (wrapped_state, returns+reward)
-        return state, obs, reward, done
+        return state, obs, done, reward
     
     return wrapped_reset, wrapped_step
 
@@ -115,11 +106,11 @@ def parallel_env_wrapper(
     num_parallel_envs: int,
 ):
     reset = ignore_unused_args(reset, ('key',))
-    reset = jax.vmap(reset, in_axes=(0,))
+    reset = jax.vmap(reset)
     reset = split_random_keys(reset, num_parallel_envs)
     
     step = ignore_unused_args(step, ('key', 'state', 'action'))
-    step = jax.vmap(step, in_axes=(0,0,0))
+    step = jax.vmap(step)
     step = split_random_keys(step, num_parallel_envs)
     
     return reset, step

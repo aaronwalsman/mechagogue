@@ -19,6 +19,7 @@ classifiers = [
 dependencies = [
   "jax",
   "chex",
+  "msgpack",
 ]
 
 [project.urls]
