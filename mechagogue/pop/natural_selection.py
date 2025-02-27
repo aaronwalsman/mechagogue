@@ -1,6 +1,6 @@
 '''
 The natural selection algorithm simulates a population of players forward
-over multiple time steps.  Each step uses a policy function to compute an
+over multiple time steps.  Each step uses a model function to compute an
 action for each agent, then uses those actions to compute environment
 dynamics.  In addition to a state and observation, the environment should
 produce a list of players that currently exist, and their parents.  This
@@ -10,104 +10,108 @@ This algorithm does not have an optimization objective, but instead relies
 on the environment dynamics to update the population over time.
 '''
 
-from typing import Sequence
+from typing import Any
 
 import jax
-import jax.random as jrng
 import jax.numpy as jnp
+import jax.random as jrng
 
-from flax.struct import dataclass
+from mechagogue.static_dataclass import static_dataclass
+from mechagogue.arg_wrappers import ignore_unused_args
+from mechagogue.tree import tree_getitem, tree_setitem
 
-@dataclass
+@static_dataclass
 class NaturalSelectionParams:
-    '''
-    Configuration parameters.  This should only contain values that will be
-    fixed throughout training.
-    '''
-    rollout_steps: int = 256
+    max_population : int
+
+@static_dataclass
+class NaturalSelectionState:
+    env_state : Any
+    obs : Any
+    model_state : Any
 
 def natural_selection(
     params,
     reset_env,
     step_env,
-    policy,
-    initialize_weights,
-    update_weights,
+    init_model_state,
+    model,
+    breed,
+    make_report = lambda : None,
 ):
-    '''
-    Bundles a set of parameters, an environment reset_env and step_env
-    functions, a policy and a way to initialize and copy weights into
-    reset_natural_selection and step_natural_selection functions.
     
-    The reset_natural_selection function is meant to be called once at the
-    beginning of a training session to initialize the state information for
-    a single run of the natural selection algorithm.
+    # wrap the provided functions
+    reset_env = ignore_unused_args(reset_env,
+        ('key',))
+    step_env = ignore_unused_args(step_env,
+        ('key', 'state', 'action'))
+    init_model_state = ignore_unused_args(init_model_state,
+        ('key',))
+    init_model_state = jax.vmap(init_model_state)
+    model = ignore_unused_args(model,
+        ('key', 'x', 'state'))
+    model = jax.vmap(model)
+    breed = ignore_unused_args(breed,
+        ('key', 'state'))
+    breed = jax.vmap(breed)
+    make_report = ignore_unused_args(make_report, (
+        'state',
+        'actions',
+        'next_state',
+        'players',
+        'parent_locations',
+        'child_locations',
+    ))
     
-    The step_natural_selection function can be called iteratively to compute
-    a dynamic population of players.
-    '''
-    
-    def reset_natural_selection(
-        key,
-    ):
+    def init(key):
+        
         # generate keys
-        reset_key, weight_key = jrng.split(key)
+        env_key, model_key = jrng.split(key)
         
         # reset the environment
-        state, obs, players, parents = reset_env(reset_key)
-        num_players = jnp.sum(players != -1)
-        max_players = players.shape[0]
+        env_state, obs, players = reset_env(env_key)
         
-        # generate new weights
-        weight_keys = jrng.split(weight_key, max_players)
-        weights = jax.vmap(initialize_weights, in_axes=(0,))(weight_keys)
+        # build the model_state
+        model_keys = jrng.split(model_key, params.max_population)
+        model_state = init_model_state(model_keys)
         
-        return state, obs, players, parents, weights
+        return NaturalSelectionState(env_state, obs, model_state), players
+    
+    def step(key, state):
+        
+        # generate keys
+        action_key, env_key, breed_key = jrng.split(key, 3)
+        
+        # compute actions
+        action_keys = jrng.split(action_key, params.max_population)
+        actions = model(action_keys, state.obs, state.model_state)
 
-    def step_natural_selection(
-        key,
-        state,
-        obs,
-        players,
-        parents,
-        weights,
-    ):
-        # rollout trajectories
-        def rollout(rollout_state, key):
-            
-            # unpack
-            state, obs, players, parents, weights = rollout_state
-            
-            # sample an action
-            key, action_key = jrng.split(key)
-            action_sampler, _ = policy(weights, obs)
-            action = action_sampler(action_key)
-            
-            # take an environment step
-            key, step_key = jrng.split(key)
-            next_state, next_obs, next_players, next_parents = step_env(
-                step_key, state, action)
-            
-            # TODO: copy weights as necessary
-            weights = update_weights(
-                weights, players, parents, next_players, next_parents)
-            
-            # pack
-            rollout_state = (
-                next_state, next_obs, next_players, next_parents, weights)
-            transition = (obs, action, players, parents)
-            
-            return rollout_state, transition
+        # step the environment
+        env_state, obs, players, parent_locations, child_locations = step_env(
+            env_key, state.env_state, actions)
         
-        # scan rollout_step to accumulate trajectories
-        key, rollout_key = jrng.split(key)
-        (state, obs, players, parents, weights), trajectories = jax.lax.scan(
-            rollout,
-            (state, obs, players, parents, weights),
-            jrng.split(rollout_key, params.rollout_steps),
-            params.rollout_steps,
+        # update the model state
+        max_num_children, = child_locations.shape
+        breed_keys = jrng.split(breed_key, max_num_children)
+        parent_state = tree_getitem(state.model_state, parent_locations)
+        child_state = breed(breed_keys, parent_state)
+        model_state = tree_setitem(
+            state.model_state, child_locations, child_state)
+        
+        # build the next state
+        next_state = state.replace(
+            env_state=env_state, obs=obs, model_state=model_state)
+        
+        # log
+        report = make_report(
+            state,
+            actions,
+            next_state,
+            players,
+            parent_locations,
+            child_locations,
         )
         
-        return (state, obs, players, parents, weights), trajectories
+        return next_state, report
     
-    return reset_natural_selection, step_natural_selection
+    return init, step

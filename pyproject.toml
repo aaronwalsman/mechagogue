@@ -18,9 +18,8 @@ classifiers = [
 ]
 dependencies = [
   "jax",
-  "flax",
-  "distrax",
   "chex",
+  "msgpack",
 ]
 
 [project.urls]

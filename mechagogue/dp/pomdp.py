@@ -6,17 +6,15 @@ from typing import Any, Callable, Tuple
 
 import jax.random as jrng
 
-from decisionprocess.filter_args import filter_args
+from mechagogue.arg_wrappers import ignore_unused_args
 
 def pomdp(
-    params : Any,
     initialize_fn : Callable,
     transition_fn : Callable,
     observe_fn : Callable,
-    reward_fn : Callable = lambda key, state, action, next_state: 0.,
-    done_fn : Callable = lambda key, state, action, next_state: False,
-    reward_format : str = 'san',
-    done_format : str = 'san',
+    reward_fn : Callable = lambda : 0.,
+    done_fn : Callable = lambda : False,
+    config : Any = None,
 ) -> Tuple[Callable, Callable] :
     '''
     Builds reset and step functions for a partially observable markov decision
@@ -27,17 +25,17 @@ def pomdp(
     
     The components of a POMDP are:
     
-    params:
+    config:
         A static set of environment-specific configuration parameters defining
         properties of the environment.
     
-    initialize_fn(key, params) -> state:
+    initialize_fn(key, config) -> state:
         A stochastic function that samples an initial state.
     
-    transition_fn(key, params, state, action) -> state:
+    transition_fn(key, config, state, action) -> state:
         A stochastic function that maps a state and action to a new state.
     
-    observe_fn(key, params, state) -> obs:
+    observe_fn(key, config, state) -> obs:
         A stochastic function that maps a state to an observation.
     
     reward_fn(key, [state, action, next_state]) -> float:
@@ -61,13 +59,22 @@ def pomdp(
         state and action.
     '''
     
+    initialize_fn = ignore_unused_args(initialize_fn, ('key', 'config'))
+    transition_fn = ignore_unused_args(
+        transition_fn, ('key', 'config', 'state', 'action'))
+    observe_fn = ignore_unused_args(observe_fn, ('key', 'config', 'state'))
+    reward_fn = ignore_unused_args(
+        reward_fn, ('key', 'config', 'state', 'action', 'next_state'))
+    done_fn = ignore_unused_args(
+        done_fn, ('key', 'config', 'state', 'action', 'next_state'))
+    
     def reset(key):
         # generate new keys
         initialize_key, observe_key = jrng.split(key, 2)
         
         # generate the first state and observation
-        state = initialize_fn(initialize_key, params)
-        obs = observe_fn(observe_key, params, state)
+        state = initialize_fn(initialize_key, config)
+        obs = observe_fn(observe_key, config, state)
         
         # return
         return state, obs
@@ -77,14 +84,12 @@ def pomdp(
         transition_key, observe_key, reward_key, done_key = jrng.split(key, 4)
         
         # generate the next state and observation
-        next_state = transition_fn(transition_key, params, state, action)
-        obs = observe_fn(key, params, next_state)
+        next_state = transition_fn(transition_key, config, state, action)
+        obs = observe_fn(observe_key, config, next_state)
         
         # compute the reward and done
-        reward_args = filter_args(reward_format, state, action, next_state)
-        reward = reward_fn(reward_key, params, *reward_args)
-        done_args = filter_args(done_format, state, action, next_state)
-        done = done_fn(done_key, params, *done_args)
+        reward = reward_fn(reward_key, config, state, action, next_state)
+        done = done_fn(done_key, config, state, action, next_state)
         
         # return
         return next_state, obs, reward, done

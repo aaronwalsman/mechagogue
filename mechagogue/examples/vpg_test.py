@@ -3,7 +3,11 @@ import jax.numpy as jnp
 import jax.random as jrng
 
 from mechagogue.dp.mdp import mdp
-from mechagogue.rl.vpg import vpg, VPGParams
+from mechagogue.rl.vpg import vpg, VPGConfig
+
+# DAPHNE TODO: This is a quick example using a random (unlearned) policy.
+# Once we get this working (see bug in vpg.py) we need to make a copy of this
+# example, but that uses a flax MLP and actually does learning.
 
 def initialize_target_env(key, target):
     return jnp.array([0,0], dtype=jnp.int32)
@@ -38,10 +42,6 @@ def uniform_policy(weights, obs):
     
     return sample, logp
 
-# this shouldn't be necessary with a neural network policy that takes
-# batched input
-#uniform_policy = jax.vmap(uniform_policy, in_axes=(None,0))
-
 def train(key, params):
     
     vpg_reset, vpg_step = vpg(
@@ -51,14 +51,15 @@ def train(key, params):
         step_env,
         uniform_policy,
         lambda key : None,
-        lambda key : None,
+        lambda key, params, grad : None,
     )
     
     key, reset_key = jrng.split(key)
     vpg_state = vpg_reset(reset_key)
     
     def step(vpg_state, key):
-        vpg_state = vpg_step(key, *vpg_state)
+        *vpg_state, _ = vpg_step(key, *vpg_state)
+        return tuple(vpg_state), None
     
     num_epochs = 12
     step_keys = jrng.split(key, num_epochs)
@@ -66,7 +67,7 @@ def train(key, params):
 
 if __name__ == '__main__':
     key = jrng.key(1234)
-    params = VPGParams(
+    params = VPGConfig(
         parallel_envs=1024,
         rollout_steps=256,
         training_epochs=4,

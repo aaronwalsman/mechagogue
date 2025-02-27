@@ -2,11 +2,11 @@ import jax.random as jrng
 
 from dirt.examples.nom import NomParams, NomAction, nom
 
-from mechagogue.vpg import VPGParams, vpg
+from mechagogue.rl.vpg import VPGConfig, vpg
 
 def main(params=NomParams()):
     key = jrng.key(1234)
-    train_params = VPGParams(
+    train_params = VPGConfig(
         parallel_envs=2,
         rollout_steps=128,
     )
@@ -31,19 +31,24 @@ def main(params=NomParams()):
         
         return action_sampler, action_logp
     
-    weights = None
+    def init_params(key):
+        return None
+    
+    def train_params(key, params, grad):
+        return None
     
     #state, obs = reset(key)
     #action = NomAction(forward=True, rotate=0)
     #state, obs, reward, done = step(key, state, action)
     
-    vpg(
+    vpg_reset, vpg_step = vpg(
         train_key,
         train_params,
         reset,
         step,
         policy,
-        weights,
+        init_params,
+        train_params,
     )
 
 if __name__ == '__main__':

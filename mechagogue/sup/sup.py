@@ -1,66 +1,81 @@
 import jax
+import jax.numpy as jnp
 import jax.random as jrng
 
-class SupervisedLearningParams:
-    batch_size: int = 64
+from mechagogue.static_dataclass import static_dataclass
+from mechagogue.tree import (
+    tree_len, shuffle_tree, pad_tree_batch_size, batch_tree)
+from mechagogue.arg_wrappers import ignore_unused_args
+from mechagogue.eval.batch_eval import batch_evaluator
 
-def supervised_learning(
+@static_dataclass
+class SupParams:
+    batch_size: int = 64
+    shuffle: bool = True
+
+def sup(
     params,
-    initialize_weights,
-    forward,
-    optimize,
+    init_model,
+    model,
+    init_optim,
+    optim,
     loss_function,
+    test_function,
 ):
     
-    reset_supervised_learning = initialize_weights
+    # wrap the provided functions
+    init_model = ignore_unused_args(init_model,
+        ('key',))
+    model = ignore_unused_args(model,
+        ('key', 'x', 'state'))
+    init_optim = ignore_unused_args(init_optim,
+        ('key', 'model_state'))
+    optim = ignore_unused_args(optim,
+        ('key', 'grad', 'model_state', 'optim_state'))
+    loss_function = ignore_unused_args(loss_function,
+        ('pred', 'y', 'mask'))
+    test_function = ignore_unused_args(test_function,
+        ('pred', 'y', 'mask'))
     
-    def step_supervised_learning(
-        key,
-        x,
-        y,
-        weights,
-    ):
-        num_examples, *x_shape = x.shape
-        num_examples, *y_shape = y.shape
-        num_batches = num_examples // batch_size
-        clipped_examples = num_batches * batch_size
-        
-        key, shuffle_key = jrng.split(key)
-        shuffled_x = jrng.permutation(shuffle_key, x)[:clipped_examples]
-        shuffled_y = jrng.permutation(shuffle_key, y)[:clipped_examples]
-        batched_x = shuffled_x.reshape(num_batches, batch_size, *x_shape)
-        batched_y = shuffled_y.reshape(num_batches, batch_size, *y_shape)
-        
-        def train_batch(weights, batch):
-            key, x, y = batch
-            
-            def compute_loss(key, x, y, weights):
-                forward_key, loss_key = jrng.split(key)
-                x = forward(key, x, weights)
-                return loss_function(key, x, y)
-            
-            loss_and_grad = jax.value_and_grad(compute_loss, argnums=3)
-            key, loss_key = jrng.split(key)
-            loss, grad = loss_and_grad(loss_key, x, y, weights)
-            
-            key, optimizer_key = jrng.split(key)
-            weights = optimize(weights, optimizer_parameters, grad)
-            
-            return weights, loss
-        
-        batch_keys = jrng.split(key, num_batches+1)
-        key, batch_keys = batch_keys[0], batch_keys[1:]
-        weights, losses = jax.lax.scan(
-            train_batch, weights, (batch_keys, batched_x, batched_y))
-        
-        return weights, losses
+    def init(key):
+        model_key, optim_key = jrng.split(key)
+        model_state = init_model(model_key)
+        optim_state = init_optim(optim_key, model_state)
+        return model_state, optim_state
     
-    def eval_supervised_learning(
-        key,
-        x,
-        y,
-        weights,
-    ):
-        key, forward_key = jrng.split(key)
-        x = forward(key, x, weights)
-        loss = loss_function(loss_key, x, y, weights)
+    def train(key, x, y, model_state, optim_state):
+        if params.shuffle:
+            key, shuffle_key = jrng.split(key)
+            x, y = shuffle_tree(shuffle_key, (x, y))
+        (x, y), mask = pad_tree_batch_size((x, y), params.batch_size)
+        x, y, mask = batch_tree((x, y, mask), params.batch_size)
+        
+        def train_batch(model_optim_state, key_x_y_mask):
+            model_state, optim_state = model_optim_state
+            key, x, y, mask = key_x_y_mask
+            
+            def forward(key, x, y, mask, model_state):
+                pred = model(key, x, model_state)
+                loss = loss_function(pred, y, mask)
+                return loss
+            
+            forward_key, optim_key = jrng.split(key)
+            loss, grad = jax.value_and_grad(forward, argnums=4)(
+                forward_key, x, y, mask, model_state)
+            model_state, optim_state = optim(
+                optim_key, grad, model_state, optim_state)
+            
+            return (model_state, optim_state), loss
+        
+        num_batches = tree_len(x)
+        batch_keys = jrng.split(key, num_batches)
+        (model_state, optim_state), losses = jax.lax.scan(
+            train_batch,
+            (model_state, optim_state),
+            (batch_keys, x, y, mask),
+        )
+        return model_state, optim_state, losses
+    
+    test = batch_evaluator(model, test_function, params.batch_size)
+    
+    return init, train, test

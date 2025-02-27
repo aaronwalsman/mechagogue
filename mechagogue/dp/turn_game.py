@@ -2,10 +2,9 @@ from typing import Any, Callable
 
 import jax.random as jrng
 
-from decision_process.filter_args import filter_args
+#from decision_process.filter_args import filter_args
 
 def turn_game(
-    params: Any,
     initialize_fn: Callable,
     transition_fn: Callable,
     players_fn: Callable,
@@ -13,23 +12,26 @@ def turn_game(
     observe_fn: Callable,
     reward_fn: Callable,
     done_fn: Callable,
-    reward_format: str = 'san',
-    done_format: str = 'san',
+    config: Any = None,
 ) -> Callable:
+    
+    initialize_fn = ignore_unused_args(initialize_fn, ('key', 'config'))
+    transition_fn = ignore_unused_args(
+        transition_fn, ('key', 'config', 'state', 'action'))
     
     def reset(key):
         # make new keys
         initialize_key, observe_key = jrng.split(key, 2)
         
         # make the first state
-        state = initialize_fn(initialize_key, params)
+        state = initialize_fn(initialize_key, config)
         
         # compute the number of players and the current player
-        players = players_fn(params, state)
-        current_player = current_player_fn(params, state)
+        players = players_fn(config, state)
+        current_player = current_player_fn(config, state)
         
         # compute the observation
-        obs = observe_fn(observe_key, params, state)
+        obs = observe_fn(observe_key, config, state)
         
         # return
         return state, players, current_player, obs
@@ -39,18 +41,18 @@ def turn_game(
         transition_key, observe_key, reward_key, done_key = jrng.split(key, 4)
         
         # compute the next state from the current state and action
-        next_state = transition_fn(transition_key, params, state, action)
+        next_state = transition_fn(transition_key, config, state, action)
         
         # compute the number of players and the current player
-        players = players_fn(params, next_state)
-        current_player = current_player_fn(params, next_state)
+        players = players_fn(config, next_state)
+        current_player = current_player_fn(config, next_state)
         
         # compute the observation, rewards and done
-        obs = observe_fn(observe_key, params, next_state)
+        obs = observe_fn(observe_key, config, next_state)
         reward_args = filter_args(reward_format, state, action, next_state)
-        reward = reward_fn(reward_key, params, *reward_args)
+        reward = reward_fn(reward_key, config, *reward_args)
         done_args = filter_args(done_format, state, action, next_state)
-        done = done_fn(done_key, params, *done_args)
+        done = done_fn(done_key, config, *done_args)
         
         # return
         return next_state, num_players, current_player, obs, reward, done
