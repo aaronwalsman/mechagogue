@@ -3,6 +3,7 @@ import jax.numpy as jnp
 import jax.random as jrng
 
 from mechagogue.tree import pad_tree_batch_size, batch_tree
+from mechagogue.arg_wrappers import ignore_unused_args
 
 def batch_evaluator(
     model,
