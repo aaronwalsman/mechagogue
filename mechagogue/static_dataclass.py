@@ -1,6 +1,5 @@
 import argparse
 from typing import Any
-
 from dataclasses import dataclass, fields, is_dataclass
 
 import jax
@@ -29,6 +28,7 @@ def static_dataclass(cls):
         field_dict.update(kwargs)
         return cls(**field_dict)
     
+    '''
     def add_commandline_args(obj, parser, prefixes=()):
         cls = obj.__class__
         for field in fields(cls):
@@ -66,18 +66,43 @@ def static_dataclass(cls):
         args = parser.parse_args()
         obj = obj.update_from_commandline(args)
         return obj
-       
+    
+    @classmethod
+    def from_file_and_commandline(cls, *args, **kwargs):
+        
+        # make an example instance of the class
+        obj = cls(*args, **kwargs)
+        
+        # make the parser and add the load argument
+        parser = argparse.ArgumentParser()
+        parser.add_argument('--load', type=str, default=Nome)
+        
+        # if --load was specified, load the specified file
+        load_args, other_args = parser.parse_known_args()
+        if load_args.load is not None:
+            obj = load_example_data(obj, load_args.load)
+        
+        # add the other commandline args and parse them
+        obj.add_commandline_args(parser)
+        cli_args = parser.parse_args()
+        
+        # update the (possibly loaded) parameters from the commandline
+        obj = obj.update_from_commandline(cli_args)
+        return obj
+    '''
+    
     cls.tree_flatten = tree_flatten
     cls.tree_unflatten = tree_unflatten
     cls.replace = replace
-    cls.add_commandline_args = add_commandline_args
-    cls.update_from_commandline = update_from_commandline
-    cls.from_commandline = from_commandline
+    #cls.add_commandline_args = add_commandline_args
+    #cls.update_from_commandline = update_from_commandline
+    #cls.from_commandline = from_commandline
     
     jax.tree_util.register_pytree_node_class(cls)
 
     return cls
 
+'''
 if __name__ == '__main__':
     
     import argparse
@@ -101,3 +126,4 @@ if __name__ == '__main__':
     
     print('Original:', b)
     print('Commandline:', b_commandline)
+'''
