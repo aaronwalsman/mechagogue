@@ -1,7 +1,35 @@
+from typing import Tuple, get_origin, get_args
+
 import argparse
 from dataclasses import fields, is_dataclass
 
 from mechagogue.serial import load_example_data
+
+def _annotation_type_parser(annotation):
+    if get_origin(annotation) is tuple:
+        return _tuple_parser(annotation)
+    elif (
+        annotation is str or
+        annotation is int or
+        annotation is float or
+        annotation is bool,
+    ):
+        return annotation
+    else:
+        raise Exception(f'Unsupported commandline type: {annotation}')
+
+def _tuple_parser(annotation):
+    args = get_args(annotation)
+    arg_parsers = [_annotation_type_parser(arg) for arg in args]
+    def parser(value):
+        components = value.split(',')
+        assert len(components) == len(args)
+        return tuple(
+            arg_parser(component)
+            for arg_parser, component in zip(arg_parsers, components)
+        )
+    
+    return parser
 
 def _add_commandline_args(obj, parser, prefixes=()):
     cls = obj.__class__
@@ -19,7 +47,14 @@ def _add_commandline_args(obj, parser, prefixes=()):
             #    parser.add_argument(
             #        argname, action='store_true')
             #else:
-            parser.add_argument(argname, type=field.type, default=default)
+            #if isinstance(field.type, Tuple):
+            #    breakpoint()
+            #if get_origin(field.type) is tuple:
+            #    parser_type = _tuple_parser
+            #else:
+            #    parser_type = field.type
+            type_parser = _annotation_type_parser(field.type)
+            parser.add_argument(argname, type=type_parser, default=default)
     
     return parser
 

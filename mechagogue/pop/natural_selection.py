@@ -34,8 +34,8 @@ def natural_selection(
     params,
     reset_env,
     step_env,
-    #init_population_state,
-    init_model_state,
+    init_population_state,
+    #init_model_state,
     model,
     breed,
     make_report = lambda : None,
@@ -46,11 +46,11 @@ def natural_selection(
         ('key',))
     step_env = ignore_unused_args(step_env,
         ('key', 'state', 'action'))
-    init_model_state = ignore_unused_args(init_model_state,
-        ('key',))
-    init_model_state = jax.vmap(init_model_state)
-    #init_population_state = ignore_unused_args(init_population_state,
-    #    ('key', 'population_size', 'max_population_size'))
+    #init_model_state = ignore_unused_args(init_model_state,
+    #    ('key',))
+    #init_model_state = jax.vmap(init_model_state)
+    init_population_state = ignore_unused_args(init_population_state,
+        ('key', 'population_size', 'max_population_size'))
     model = ignore_unused_args(model,
         ('key', 'x', 'state'))
     model = jax.vmap(model)
@@ -75,11 +75,11 @@ def natural_selection(
         env_state, obs, players = reset_env(env_key)
         
         # build the model_state
-        model_keys = jrng.split(model_key, params.max_population)
-        model_state = init_model_state(model_keys)
-        #population_size = jnp.sum(players)
-        #model_state = #init_population_state(
-        #    model_key, population_size, params.max_population)
+        #model_keys = jrng.split(model_key, params.max_population)
+        #model_state = init_model_state(model_keys)
+        population_size = jnp.sum(players)
+        model_state = init_population_state(
+            model_key, population_size, params.max_population)
         
         return NaturalSelectionState(env_state, obs, model_state), players
     
