@@ -44,7 +44,7 @@ def population_game(
         players = active_players(state)
         
         # return
-        return state, obs, players #, parents, children
+        return state, obs, players
     
     def step(key, state, action):
         # generate new keys
@@ -56,13 +56,7 @@ def population_game(
         players = active_players(next_state)
         parents, children = family_info(state, action, next_state)
         
-        logging_info = get_logging_info(state, action, next_state)
-
         # return
         return next_state, obs, players, parents, children
-    
-    def get_logging_info(state, action, next_state):
-
-        return action
     
     return reset, step
