@@ -23,6 +23,7 @@ class GAParams:
     batches_per_step: int = 1
     elites: int = 1
     dunces: int = 0
+    share_keys: bool = False
 
 def ga(
     params,
@@ -36,6 +37,13 @@ def ga(
     # wrap the provided functions
     init_model = ignore_unused_args(init_model,
         ('key',))
+    init_model = jax.vmap(init_model)
+    # need to figure out how to vmap post ignore_unused_args
+    if params.share_keys:
+        parallel_model_axes = (None, None, 0)
+    else:
+        parallel_model_axes = (0, None, 0)
+    parallel_model = jax.vmap(model, in_axes=parallel_model_axes)
     model = ignore_unused_args(model,
         ('key', 'x', 'state'))
     breed = ignore_unused_args(breed,
@@ -49,7 +57,7 @@ def ga(
     
     def init(key):
         model_keys = jrng.split(key, params.population_size)
-        model_state = jax.vmap(init_model)(model_keys)
+        model_state = init_model(model_keys)
         return model_state
     
     def train(key, x, y, model_state):
@@ -70,9 +78,13 @@ def ga(
             
             def loss_step(fitness, key_x_y_mask):
                 key, x, y, mask = key_x_y_mask
-                x = x[None, ...]
+                #x = x[None, ...]
                 model_key, loss_key = jrng.split(key)
-                pred = model(model_key, x, model_state)
+                if params.share_keys:
+                    pred = parallel_model(model_key, x, model_state)
+                else:
+                    model_keys = jrng.split(model_key, params.population_size)
+                    pred = parallel_model(model_keys, x, model_state)
                 loss = jax.vmap(loss_function, in_axes=(0,None,None))(
                     pred, y, mask)
                 fitness = fitness - loss
