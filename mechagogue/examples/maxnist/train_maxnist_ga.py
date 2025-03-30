@@ -13,6 +13,7 @@ from mechagogue.nn.sequence import layer_sequence
 from mechagogue.nn.mlp import mlp
 from mechagogue.nn.permute import permute_layer
 from mechagogue.nn.nonlinear import relu_layer
+from mechagogue.nn.regularizer import dropout_layer
 import mechagogue.data.maxnist as maxnist
 from mechagogue.breed.normal import normal_mutate
 
@@ -32,13 +33,13 @@ class MaxnistParams:
     
     # model
     hidden_layers : int = 1
-    hidden_channels : int = 256
+    hidden_channels : int = 512
     
     # optim
     learning_rate : float = 1e-3
     
     # training
-    epochs : int = 200
+    epochs : int = 2000
     batch_size : int = 64
     visualize_examples : int = 0
 
@@ -107,11 +108,29 @@ elif model_class == 'grouped_linear':
         (lambda : None, lambda x :                                            
             jnp.pad(x.reshape(-1,in_channels), ((0,0),(0,15)), mode='empty')),
         group_block(64, 512, hidden_channels, groups),
+        #dropout_layer(0.1),
         relu_layer(),
         #permute_layer(permutation),
         group_block(hidden_channels, 512, 32, groups),
         (lambda : None, lambda x : x[...,:10]),
     ))
+
+elif model_class == 'another':
+    hidden_channels = 1024
+    groups = 16
+    permutation = jnp.arange(hidden_channels).reshape(groups, hidden_channels//groups).T.reshape(-1)
+    init_model, model = layer_sequence((
+        (lambda : None, lambda x : x.reshape(-1, in_channels)),
+        linear_layer(in_channels, hidden_channels),
+        relu_layer(),
+        grouped_linear_layer(hidden_channels, hidden_channels, groups),
+        #permute_layer(permutation),
+        relu_layer(),
+        #grouped_linear_layer(hidden_channels, hidden_channels, groups),
+        #relu_layer(),
+        linear_layer(hidden_channels, num_classes),
+    ))
+        
 
 # build the mutator
 breed = normal_mutate(learning_rate=params.learning_rate)
@@ -122,6 +141,7 @@ ga_params = GAParams(
     batch_size=params.batch_size,
     batches_per_step=16,
     population_size=128,
+    share_keys=True,
 )
 init_train, train_model, test_model = ga(
     ga_params,
