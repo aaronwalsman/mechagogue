@@ -65,10 +65,13 @@ test_x, test_y = maxnist.make_multidigit_dataset(
     noise=params.data_noise,
 )
 
+# build the mutator
+breed = normal_mutate(learning_rate=params.learning_rate)
+
 # build the model
 in_channels = 49*params.digits
 num_classes = 10**params.digits
-model_class = 'mlp'
+model_class = 'mutable_channels'
 
 if model_class == 'mlp':
     init_model, model = layer_sequence((
@@ -131,9 +134,36 @@ elif model_class == 'another':
         linear_layer(hidden_channels, num_classes),
     ))
         
-
-# build the mutator
-breed = normal_mutate(learning_rate=params.learning_rate)
+elif model_class == 'mutable_channels':
+    from dirt.models.mutable_model import (
+        backbone, mutate_backbone, virtual_parameters)
+    hidden_channels = 256
+    init_model, model = layer_sequence((
+        (lambda: None, lambda x : x.reshape(-1, in_channels)),
+        linear_layer(in_channels, hidden_channels, dtype=jnp.bfloat16),
+        backbone(32, hidden_channels, 1, 1),
+        linear_layer(hidden_channels, num_classes),
+    ))
+    
+    backbone_mutator = mutate_backbone(
+        32,
+        256,
+        params.learning_rate,
+        params.learning_rate,
+        0.1,
+    )
+    
+    mutate_encoder_decoder = normal_mutate(
+        params.learning_rate, auto_scale=True)
+    def mutate(key, state):
+        encoder_decoder_key, backbone_key = jrng.split(key)
+        _, encoder_state, backbone_state, decoder_state = state
+        encoder_state, decoder_state = mutate_encoder_decoder(
+            encoder_decoder_key, (encoder_state, decoder_state))
+        backbone_state = backbone_mutator(backbone_key, backbone_state)
+        return [None, encoder_state, backbone_state, decoder_state]
+    
+    breed = mutate
 
 # build the supervised learning algorithm
 ga_params = GAParams(
@@ -157,6 +187,13 @@ test_model = jax.jit(test_model)
 # initialize the supervised learning algorithm
 key, init_key = jrng.split(key)
 model_state = init_train(init_key)
+
+def weight_mean_std(weight):
+    n = weight.shape[0]
+    weight = weight.reshape(n, -1)
+    weight_mean = weight.mean(axis=-1)
+    weight_std = weight.std(axis=-1)
+    return weight_mean, weight_std
 
 '''
 print('Initialization:')
@@ -195,7 +232,22 @@ for epoch in range(params.epochs):
     key, test_key = jrng.split(key)
     accuracy = test_model(test_key, test_x, test_y, model_state)
     print(f'  accuracy: {accuracy}')
-
+    
+    if model_class == 'mutable_channels':
+        dynamic_channel_state = model_state[2][1]
+        print(f'  channels: {dynamic_channel_state[...,0]}')
+    
+    if model_class == 'mutable_channels':
+        _, encoder_state, backbone_state, decoder_state = model_state
+        encoder_mean, encoder_std = weight_mean_std(encoder_state[0])
+        print(f'  encoder std: {encoder_std.mean()}')
+        backbone_linear_state, _ = backbone_state
+        for i, layer_state in enumerate(backbone_linear_state):
+            layer_mean, layer_std = weight_mean_std(layer_state[0])
+            print(f'  weight {i} std: {layer_std.mean()}')
+        decoder_mean, decoder_std = weight_mean_std(decoder_state[0])
+        print(f'  decoder std: {decoder_std.mean()}')
+    
     '''
     weight0 = model_state[1][0][0]
     n = weight0.shape[0]
