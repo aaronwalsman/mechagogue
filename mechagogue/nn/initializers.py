@@ -2,10 +2,12 @@ import jax
 import jax.numpy as jnp
 import jax.random as jrng
 
+def kaiming_std(fan_in):
+    return jnp.sqrt(2/fan_in)
+
 def kaiming(key, shape, dtype=jnp.float32):
     fan_in = shape[-2]
-    std = jnp.sqrt(2/fan_in)
-    return jrng.normal(key, shape, dtype=dtype) * std
+    return jrng.normal(key, shape, dtype=dtype) * kaiming_std(fan_in)
 
 def xavier(key, shape, dtype=jnp.float32):
     fan_in = shape[-2]
