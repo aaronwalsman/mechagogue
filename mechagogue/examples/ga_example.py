@@ -1,7 +1,7 @@
 import jax
 import jax.random as jrng
 
-from mechagogue.ga.ga import ga, GAConfig
+from mechagogue.sup.ga import ga, GAParams
 import mechagogue.sup.tasks.classify as classify
 from mechagogue.nn.mlp import mlp
 from mechagogue.breed.normal import normal_mutate
@@ -44,7 +44,7 @@ def train():
         learning_rate=learning_rate,
     )
     
-    ga_config = GAConfig(
+    ga_config = GAParams(
         batch_size=batch_size,
         batches_per_step=batches_per_step,
         population_size=population_size,

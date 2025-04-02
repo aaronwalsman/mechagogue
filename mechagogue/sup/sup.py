@@ -8,6 +8,13 @@ from mechagogue.tree import (
 from mechagogue.arg_wrappers import ignore_unused_args
 from mechagogue.eval.batch_eval import batch_evaluator
 
+print(
+    'Warning: should probably be refactored to use the job primitives.  '
+    'I think in this context, the right thing to do is make x and y an '
+    'argument to the high-level sup function.  Then make train just process '
+    'one step at a time.  Batches/ids should be precomputed each epoch.'
+)
+
 @static_dataclass
 class SupParams:
     batch_size: int = 64
@@ -33,9 +40,7 @@ def sup(
     optim = ignore_unused_args(optim,
         ('key', 'grad', 'model_state', 'optim_state'))
     loss_function = ignore_unused_args(loss_function,
-        ('pred', 'y', 'mask'))
-    test_function = ignore_unused_args(test_function,
-        ('pred', 'y', 'mask'))
+        ('pred', 'y', 'state', 'mask'))
     
     def init(key):
         model_key, optim_key = jrng.split(key)
@@ -56,7 +61,7 @@ def sup(
             
             def forward(key, x, y, mask, model_state):
                 pred = model(key, x, model_state)
-                loss = loss_function(pred, y, mask)
+                loss = loss_function(pred, y, model_state, mask)
                 return loss
             
             forward_key, optim_key = jrng.split(key)

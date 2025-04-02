@@ -26,7 +26,7 @@ def population_game(
     init_state = ignore_unused_args(init_state,
         ('key',))
     transition = ignore_unused_args(transition,
-        ('key', 'state', 'action'))
+        ('key', 'state', 'action', 'traits'))
     observe = ignore_unused_args(observe,
         ('key', 'state'))
     active_players = ignore_unused_args(active_players,
@@ -44,25 +44,19 @@ def population_game(
         players = active_players(state)
         
         # return
-        return state, obs, players #, parents, children
+        return state, obs, players
     
-    def step(key, state, action):
+    def step(key, state, action, traits):
         # generate new keys
         transition_key, observe_key = jrng.split(key)
         
         # generate the next state and observation
-        next_state = transition(transition_key, state, action)
+        next_state = transition(transition_key, state, action, traits)
         obs = observe(observe_key, next_state)
         players = active_players(next_state)
         parents, children = family_info(state, action, next_state)
         
-        logging_info = get_logging_info(state, action, next_state)
-
         # return
         return next_state, obs, players, parents, children
-    
-    def get_logging_info(state, action, next_state):
-
-        return action
     
     return reset, step
