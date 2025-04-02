@@ -22,7 +22,13 @@ def mlp(
     in_c = in_channels
     for _ in range(hidden_layers):
         layers.append(linear_layer(
-            in_c, hidden_channels, use_bias=use_bias, dtype=dtype))
+            in_c,
+            hidden_channels,
+            use_bias=use_bias,
+            init_weight=init_weight,
+            init_bias=init_bias,
+            dtype=dtype,
+        ))
         
         if p_dropout:
             layers.append(dropout_layer(p_dropout))

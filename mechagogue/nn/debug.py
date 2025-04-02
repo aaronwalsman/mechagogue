@@ -6,3 +6,10 @@ def print_activations_layer(prefix):
         return x
     
     return lambda : None, model
+
+def breakpoint_layer():
+    def model(key, x):
+        breakpoint()
+        return x
+    
+    return lambda : None, model
