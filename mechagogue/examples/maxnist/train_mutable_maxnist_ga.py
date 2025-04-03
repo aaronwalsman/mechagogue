@@ -94,12 +94,14 @@ if model_class == 'mlp':
     ))
     
     def get_labelled_weights(model_state):
+
+
         breakpoint()
         return {}
 
 elif model_class == 'mutable':
-    from dirt.models.mutable_model import (
-        mutable_mlp, mutate_mutable_mlp)
+    from dirt.models.mutable_model_aaron_std import (
+        mutable_mlp, mutate_mutable_mlp, get_mutable_weight_mean_std)
     hidden_channels = 256
     
     init_model, model = layer_sequence((
@@ -131,6 +133,18 @@ elif model_class == 'mutable':
     
     breed = mutate
     
+    def get_labelled_weights(model_state):
+        labelled_weights = {}
+        b = model_state[1]['in_linear'][0].shape[0]
+        inc = jnp.full((b,), model_state[1]['in_linear'][0].shape[-2])
+        hiddenc = model_state[1]['mutable_channels']
+        outc = jnp.full((b,), model_state[1]['out_linear'][0].shape[-1])
+        labelled_weights['in_linear'] = model_state[1]['in_linear'][0], inc, hiddenc
+        labelled_weights['out_linear'] = model_state[1]['out_linear'][0], hiddenc, outc
+        for i, hidden_layer in enumerate(model_state[1]['hidden_linear']):
+            labelled_weights[f'hidden_{i}_linear'] = hidden_layer[0], hiddenc, hiddenc
+        return labelled_weights
+
     '''
     def get_labelled_weights(model_state):
         labelled_weights = {
@@ -157,6 +171,7 @@ ga_params = GAParams(
     population_size=128,
     share_keys=True,
 )
+
 init_train, train_model, test_model = ga(
     ga_params,
     init_model,
@@ -185,43 +200,46 @@ wandb.init(
 #    #weight_std = weight.std(axis=-1)
 #    return weight_mean, weight_std
 #
-#def dynamic_weight_mean_std(weight, in_channels, out_channels):
-#    n,i,o = weight.shape
-#    weight_sum = jnp.sum(weight.reshape(n, -1), axis=1)
-#    weight_mean = weight_sum / (in_channels * out_channels)
-#    var = (weight_mean.reshape(n, None, None) - weight)**2
-#    breakpoint()
-#    #var = jnp.where(jnp.arange(i)[None,:] < in_channels, 
+def dynamic_weight_mean_std(weight, in_channels, out_channels):
+   n,i,o = weight.shape
+   weight_sum = jnp.sum(weight.reshape(n, -1), axis=1)
+   weight_mean = weight_sum / (in_channels * out_channels)
+   var = (weight_mean.reshape(n, None, None) - weight)**2
+   breakpoint()
+   #var = jnp.where(jnp.arange(i)[None,:] < in_channels, 
 
 def log(model_state, accuracy):
     datapoint = {
         'accuracy' : accuracy.mean()
     }
     
-    '''
+    
     labelled_weights = get_labelled_weights(model_state)
+    batch_get_mean_std = jax.vmap(get_mutable_weight_mean_std)
     datapoint.update({
-        f'std/{weight_name}' : dynamic_weight_mean_std(weight, )[1].mean()
-        for weight_name, weight in labelled_weights.items()
+        f'std/{weight_name}' : batch_get_mean_std(weight, inc, outc)[1].mean()
+        for weight_name, (weight, inc, outc) in labelled_weights.items()
     })
-    '''
     
-    '''
-    weight_std_target = get_labelled_weight_std_target(model_state)
     
-    if model_class == 'mutable_channels':
-        dynamic_channel_state = model_state[2][1]
+    
+    # weight_std_target = get_labelled_weight_std_target(model_state)
+    
+    if model_class == 'mutable':
+        dynamic_channel_state = model_state[1]['mutable_channels']
         datapoint.update({
             'channels':
-            dynamic_channel_state[...,0].astype(jnp.float32).mean(),
+            dynamic_channel_state.astype(jnp.float32).mean(),
         })
-    '''
+    
     wandb.log(datapoint)
 
-#labelled_weights = get_labelled_weights(model_state)
-#for weight_name, weights in labelled_weights.items():
-#    weight_mean, weight_std = weight_mean_std(weights)
-#    wandb.log({f'std/{weight_name}':weight_std.mean()})
+labelled_weights = get_labelled_weights(model_state)
+for weight_name, (weights, inc, outc) in labelled_weights.items():
+
+   batch_get_mean_std = jax.vmap(get_mutable_weight_mean_std)
+   weight_mean, weight_std = batch_get_mean_std(weights, inc, outc) #get_mutable_weight_mean_std(weights, inc, outc)
+   wandb.log({f'std/{weight_name}': weight_std.mean()})
 log(model_state, np.zeros((ga_params.population_size,)))
 
 # iterate through each epoch
@@ -231,6 +249,7 @@ for epoch in range(params.epochs):
     # train
     key, train_key = jrng.split(key)
     model_state, fitness = train_model(train_key, train_x, train_y, model_state)
+    print(model_state)
     
     # visualize
     if params.visualize_examples:
