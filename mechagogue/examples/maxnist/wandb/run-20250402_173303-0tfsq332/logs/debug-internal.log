@@ -1,0 +1,16 @@
+{"time":"2025-04-02T17:33:04.022811565-04:00","level":"INFO","msg":"stream: starting","core version":"0.19.6","symlink path":"/n/holylfs06/LABS/sham_lab/Users/chloe00/mechagogue/mechagogue/examples/maxnist/wandb/run-20250402_173303-0tfsq332/logs/debug-core.log"}
+{"time":"2025-04-02T17:33:04.138474713-04:00","level":"INFO","msg":"created new stream","id":"0tfsq332"}
+{"time":"2025-04-02T17:33:04.138513126-04:00","level":"INFO","msg":"stream: started","id":"0tfsq332"}
+{"time":"2025-04-02T17:33:04.138522533-04:00","level":"INFO","msg":"writer: Do: started","stream_id":"0tfsq332"}
+{"time":"2025-04-02T17:33:04.138642319-04:00","level":"INFO","msg":"sender: started","stream_id":"0tfsq332"}
+{"time":"2025-04-02T17:33:04.138679089-04:00","level":"INFO","msg":"handler: started","stream_id":"0tfsq332"}
+{"time":"2025-04-02T17:33:04.540092511-04:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-04-02T17:33:04.560756619-04:00","level":"ERROR","msg":"git repo not found","error":"repository does not exist"}
+{"time":"2025-04-02T17:33:51.26582978-04:00","level":"INFO","msg":"stream: closing","id":"0tfsq332"}
+{"time":"2025-04-02T17:33:51.265875107-04:00","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2025-04-02T17:33:51.266154856-04:00","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2025-04-02T17:33:51.66534649-04:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-04-02T17:33:51.779161415-04:00","level":"INFO","msg":"handler: closed","stream_id":"0tfsq332"}
+{"time":"2025-04-02T17:33:51.779189784-04:00","level":"INFO","msg":"writer: Close: closed","stream_id":"0tfsq332"}
+{"time":"2025-04-02T17:33:51.779209289-04:00","level":"INFO","msg":"sender: closed","stream_id":"0tfsq332"}
+{"time":"2025-04-02T17:33:51.779791645-04:00","level":"INFO","msg":"stream: closed","id":"0tfsq332"}

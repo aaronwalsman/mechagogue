@@ -1,0 +1,40 @@
+Epoch: 0
+> /n/holylfs06/LABS/sham_lab/Users/chloe00/dirt/dirt/models/mutable_model.py(180)mutate_mutable_linear()
+-> weight = weight / (std + 1e-8)
+Traced<ShapedArray(bfloat16[49,1])>with<BatchTrace(level=3/0)> with
+  val = Traced<ShapedArray(bfloat16[118,49,1])>with<DynamicJaxprTrace(level=2/0)>
+  batch_dim = 0
+Traced<ShapedArray(bfloat16[49,256])>with<BatchTrace(level=3/0)> with
+  val = Traced<ShapedArray(bfloat16[118,49,256])>with<DynamicJaxprTrace(level=2/0)>
+  batch_dim = 0
+Traceback (most recent call last):
+  File "/n/holylfs06/LABS/sham_lab/Users/chloe00/mechagogue/mechagogue/examples/maxnist/train_mutable_maxnist_ga.py", line 233, in <module>
+    model_state, fitness = train_model(train_key, train_x, train_y, model_state)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/n/holylfs06/LABS/sham_lab/Users/chloe00/mechagogue/mechagogue/sup/ga.py", line 131, in train
+    model_state, fitness = jax.lax.scan(
+                           ^^^^^^^^^^^^^
+  File "/n/holylfs06/LABS/sham_lab/Users/chloe00/mechagogue/mechagogue/sup/ga.py", line 115, in train_batch
+    child_state = breed(breed_keys, parent_state)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/n/holylfs06/LABS/sham_lab/Users/chloe00/mechagogue/mechagogue/arg_wrappers.py", line 26, in wrapped_function
+    return function(**wrapped_args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/n/holylfs06/LABS/sham_lab/Users/chloe00/mechagogue/mechagogue/examples/maxnist/train_mutable_maxnist_ga.py", line 129, in mutate
+    mlp_state = mutate_mlp(key, mlp_state)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/n/holylfs06/LABS/sham_lab/Users/chloe00/dirt/dirt/models/mutable_model.py", line 236, in mutate
+    weight, bias = mutate_mutable_linear(
+                   ^^^^^^^^^^^^^^^^^^^^^^
+  File "/n/holylfs06/LABS/sham_lab/Users/chloe00/dirt/dirt/models/mutable_model.py", line 180, in mutate_mutable_linear
+    weight = weight / (std + 1e-8)
+             ^^^^^^
+  File "/n/home13/chloe00/miniforge3/envs/eco/lib/python3.12/bdb.py", line 90, in trace_dispatch
+    return self.dispatch_line(frame)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/n/home13/chloe00/miniforge3/envs/eco/lib/python3.12/bdb.py", line 115, in dispatch_line
+    if self.quitting: raise BdbQuit
+                      ^^^^^^^^^^^^^
+bdb.BdbQuit
+--------------------
+For simplicity, JAX has removed its internal frames from the traceback of the following exception. Set JAX_TRACEBACK_FILTERING=off to include these.

@@ -1,0 +1,15 @@
+{"time":"2025-04-02T18:24:36.605523968-04:00","level":"INFO","msg":"stream: starting","core version":"0.19.6","symlink path":"/n/holylfs06/LABS/sham_lab/Users/chloe00/mechagogue/mechagogue/examples/maxnist/wandb/run-20250402_182436-wa32facw/logs/debug-core.log"}
+{"time":"2025-04-02T18:24:36.719393393-04:00","level":"INFO","msg":"created new stream","id":"wa32facw"}
+{"time":"2025-04-02T18:24:36.719427234-04:00","level":"INFO","msg":"stream: started","id":"wa32facw"}
+{"time":"2025-04-02T18:24:36.719462767-04:00","level":"INFO","msg":"writer: Do: started","stream_id":"wa32facw"}
+{"time":"2025-04-02T18:24:36.719603897-04:00","level":"INFO","msg":"handler: started","stream_id":"wa32facw"}
+{"time":"2025-04-02T18:24:36.719640056-04:00","level":"INFO","msg":"sender: started","stream_id":"wa32facw"}
+{"time":"2025-04-02T18:24:36.901785241-04:00","level":"INFO","msg":"Starting system monitor"}
+{"time":"2025-04-02T18:24:54.41464269-04:00","level":"INFO","msg":"stream: closing","id":"wa32facw"}
+{"time":"2025-04-02T18:24:54.414681815-04:00","level":"INFO","msg":"Stopping system monitor"}
+{"time":"2025-04-02T18:24:54.415110369-04:00","level":"INFO","msg":"Stopped system monitor"}
+{"time":"2025-04-02T18:24:54.837599359-04:00","level":"INFO","msg":"fileTransfer: Close: file transfer manager closed"}
+{"time":"2025-04-02T18:24:55.697040481-04:00","level":"INFO","msg":"handler: closed","stream_id":"wa32facw"}
+{"time":"2025-04-02T18:24:55.697094936-04:00","level":"INFO","msg":"writer: Close: closed","stream_id":"wa32facw"}
+{"time":"2025-04-02T18:24:55.697101643-04:00","level":"INFO","msg":"sender: closed","stream_id":"wa32facw"}
+{"time":"2025-04-02T18:24:55.697383991-04:00","level":"INFO","msg":"stream: closed","id":"wa32facw"}

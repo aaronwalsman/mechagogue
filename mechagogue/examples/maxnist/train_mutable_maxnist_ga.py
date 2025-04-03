@@ -83,7 +83,7 @@ model_class = 'mutable'
 
 if model_class == 'mlp':
     init_model, model = layer_sequence((
-        (lambda : None, lambda x : x.reshape(-1,in_channels)), # flatten
+        (lambda : None, lambda x : x.reshape(-1, in_channels)), # flatten
         mlp(
             hidden_layers=params.hidden_layers,
             in_channels=in_channels,

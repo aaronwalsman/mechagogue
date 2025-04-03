@@ -1,0 +1,39 @@
+Epoch: 0
+Traceback (most recent call last):
+  File "/n/holylfs06/LABS/sham_lab/Users/chloe00/mechagogue/mechagogue/examples/maxnist/train_mutable_maxnist_ga.py", line 233, in <module>
+    model_state, fitness = train_model(train_key, train_x, train_y, model_state)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/n/holylfs06/LABS/sham_lab/Users/chloe00/mechagogue/mechagogue/sup/ga.py", line 131, in train
+    model_state, fitness = jax.lax.scan(
+                           ^^^^^^^^^^^^^
+  File "/n/holylfs06/LABS/sham_lab/Users/chloe00/mechagogue/mechagogue/sup/ga.py", line 115, in train_batch
+    child_state = breed(breed_keys, parent_state)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/n/holylfs06/LABS/sham_lab/Users/chloe00/mechagogue/mechagogue/arg_wrappers.py", line 26, in wrapped_function
+    return function(**wrapped_args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/n/holylfs06/LABS/sham_lab/Users/chloe00/mechagogue/mechagogue/examples/maxnist/train_mutable_maxnist_ga.py", line 129, in mutate
+    mlp_state = mutate_mlp(key, mlp_state)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/n/holylfs06/LABS/sham_lab/Users/chloe00/dirt/dirt/models/mutable_model.py", line 252, in mutate
+    weight, bias = mutate_mutable_linear(
+                   ^^^^^^^^^^^^^^^^^^^^^^
+  File "/n/holylfs06/LABS/sham_lab/Users/chloe00/dirt/dirt/models/mutable_model.py", line 194, in mutate_mutable_linear
+    jax.debug.print(weight)
+  File "/n/home13/chloe00/miniforge3/envs/eco/lib/python3.12/site-packages/jax/_src/debugging.py", line 340, in debug_print
+    formatter.format(fmt, *args, **kwargs)
+  File "/n/home13/chloe00/miniforge3/envs/eco/lib/python3.12/string.py", line 190, in format
+    return self.vformat(format_string, args, kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/n/home13/chloe00/miniforge3/envs/eco/lib/python3.12/string.py", line 194, in vformat
+    result, _ = self._vformat(format_string, args, kwargs, used_args, 2)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/n/home13/chloe00/miniforge3/envs/eco/lib/python3.12/string.py", line 204, in _vformat
+    self.parse(format_string):
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/n/home13/chloe00/miniforge3/envs/eco/lib/python3.12/string.py", line 288, in parse
+    return _string.formatter_parser(format_string)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: expected str, got BatchTracer
+--------------------
+For simplicity, JAX has removed its internal frames from the traceback of the following exception. Set JAX_TRACEBACK_FILTERING=off to include these.
