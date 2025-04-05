@@ -61,7 +61,6 @@ def ga(
         return model_state
     
     def train(key, x, y, model_state):
-        
         # shuffle and batch the data
         if params.shuffle:
             key, shuffle_key = jrng.split(key)

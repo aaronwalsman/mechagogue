@@ -100,7 +100,7 @@ if model_class == 'mlp':
         return {}
 
 elif model_class == 'mutable':
-    from dirt.models.mutable_model_aaron_std import (
+    from dirt.models.mutable_model import (
         mutable_mlp, mutate_mutable_mlp, get_mutable_weight_mean_std)
     hidden_channels = 256
     
@@ -200,13 +200,13 @@ wandb.init(
 #    #weight_std = weight.std(axis=-1)
 #    return weight_mean, weight_std
 #
-def dynamic_weight_mean_std(weight, in_channels, out_channels):
-   n,i,o = weight.shape
-   weight_sum = jnp.sum(weight.reshape(n, -1), axis=1)
-   weight_mean = weight_sum / (in_channels * out_channels)
-   var = (weight_mean.reshape(n, None, None) - weight)**2
-   breakpoint()
-   #var = jnp.where(jnp.arange(i)[None,:] < in_channels, 
+# def dynamic_weight_mean_std(weight, in_channels, out_channels):
+#    n,i,o = weight.shape
+#    weight_sum = jnp.sum(weight.reshape(n, -1), axis=1)
+#    weight_mean = weight_sum / (in_channels * out_channels)
+#    var = (weight_mean.reshape(n, None, None) - weight)**2
+#    breakpoint()
+#    #var = jnp.where(jnp.arange(i)[None,:] < in_channels, 
 
 def log(model_state, accuracy):
     datapoint = {
