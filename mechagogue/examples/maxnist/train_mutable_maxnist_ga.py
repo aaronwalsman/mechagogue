@@ -208,6 +208,12 @@ wandb.init(
 #    breakpoint()
 #    #var = jnp.where(jnp.arange(i)[None,:] < in_channels, 
 
+def find_last_true_index(list_of_arrays):
+    for i in reversed(range(len(list_of_arrays))):
+        if any(list_of_arrays[i]):
+            return i
+    return -1  # or None, if you prefer
+
 def log(model_state, accuracy):
     datapoint = {
         'accuracy' : accuracy.mean()
@@ -222,13 +228,21 @@ def log(model_state, accuracy):
     })
     
     
-    
     # weight_std_target = get_labelled_weight_std_target(model_state)
     
     if model_class == 'mutable':
         dynamic_channel_state = model_state[1]['mutable_channels']
         datapoint.update({
             'channels':
+            dynamic_channel_state.astype(jnp.float32).mean(),
+        })
+
+
+    if model_class == 'mutable':
+        dynamic_channel_state = np.sum(model_state[1]['mutable_switch'], axis=1).mean()
+        print('dynamic_channel_state', dynamic_channel_state)
+        datapoint.update({
+            'layers':
             dynamic_channel_state.astype(jnp.float32).mean(),
         })
     
