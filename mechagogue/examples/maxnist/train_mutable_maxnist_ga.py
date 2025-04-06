@@ -239,7 +239,8 @@ def log(model_state, accuracy):
 
 
     if model_class == 'mutable':
-        dynamic_channel_state = np.sum(model_state[1]['mutable_switch'], axis=1).mean()
+        
+        dynamic_channel_state = np.sum(model_state[1]['mutable_switch'], axis=0).mean()
         print('dynamic_channel_state', dynamic_channel_state)
         datapoint.update({
             'layers':
