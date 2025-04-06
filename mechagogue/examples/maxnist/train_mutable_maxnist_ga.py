@@ -7,6 +7,7 @@ import jax.numpy as jnp
 import jax.random as jrng
 
 import wandb
+from dataclasses import asdict
 
 from mechagogue.commandline import commandline_interface
 from mechagogue.static_dataclass import static_dataclass
@@ -165,7 +166,7 @@ elif model_class == 'mutable':
 
 # build the supervised learning algorithm
 ga_params = GAParams(
-    elites=10,
+    elites=20,
     batch_size=params.batch_size,
     batches_per_step=16,
     population_size=128,
@@ -192,6 +193,7 @@ wandb.init(
     name=params.run_name,
     entity='harvardml',
 )
+wandb.config.update(asdict(ga_params))
 
 #def weight_mean_std(weight):
 #    n = weight.shape[0]
