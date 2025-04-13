@@ -85,8 +85,7 @@ def dqn(
     def init(key):
         reset_key, model_key, optim_key, replay_key = jrng.split(key, 4)
         
-        env_state, obs = reset_env(reset_key)
-        done = jnp.zeros(config.parallel_envs, dtype=jnp.bool)
+        env_state, obs, done = reset_env(reset_key)
         
         # build the model, target and optimizer state
         model_state = init_model(model_key)
