@@ -67,6 +67,8 @@ def natural_selection(
         ('key', 'state', 'action', 'traits'))
     init_population_state = ignore_unused_args(init_population_state,
         ('key', 'population_size', 'max_population_size'))
+    player_traits = ignore_unused_args(player_traits,
+        ('state',))
     model = ignore_unused_args(model,
         ('key', 'x', 'state'))
     model = jax.vmap(model)
@@ -74,7 +76,7 @@ def natural_selection(
         ('key', 'state'))
     breed = jax.vmap(breed)
     adapt = ignore_unused_args(adapt,
-        ('key', 'adaptation', 'model_state'))
+        ('key', 'adaptation', 'state'))
     adapt = jax.vmap(adapt)
     
     def init(key):
@@ -89,9 +91,6 @@ def natural_selection(
         population_size = jnp.sum(players)
         model_state = init_population_state(
             model_key, population_size, params.max_population)
-        
-        # get player traits
-        #traits = player_traits(model_state)
         
         return NaturalSelectionState(env_state, obs, model_state), players
     
