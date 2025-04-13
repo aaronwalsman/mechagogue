@@ -84,6 +84,17 @@ if model_class == 'mlp':
 elif model_class == 'grouped_linear':
     
     def group_block(in_channels, hidden_channels, out_channels, groups):
+        '''
+        A single linear would be
+        (in, out)
+        This is
+        (groups, in//groups, hidden//groups) +
+        (groups, hidden//groups, out//groups)
+        Comparing
+        in*out <?> groups*(in//groups)*(hidden//groups) + groups*(hidden//groups)*(out//groups)
+        in*out <?> in * (hidden//groups) + (hidden//groups) * out
+        in*out <?> (hidden//groups)(in+out)
+        '''
         permutation = jnp.arange(hidden_channels).reshape(
             hidden_channels//groups, groups).T.reshape(-1)
         return layer_sequence((
