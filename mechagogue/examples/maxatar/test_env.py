@@ -1,6 +1,9 @@
 import jax
 import jax.numpy as jnp
 import jax.random as jrng
+import matplotlib.pyplot as plt
+from matplotlib import colors
+import seaborn as sns
 
 import mechagogue.envs.maxatar.breakout as breakout
 from mechagogue.wrappers import auto_reset_wrapper
@@ -33,7 +36,26 @@ def test_breakout(key):
 
 test_breakout = jax.jit(test_breakout)
 
-state, obs, done, action, rew = test_breakout(jrng.key(1234))
+state, obs, done, action, rew = test_breakout(jrng.key(5678))
+
+cmap = sns.color_palette("cubehelix", breakout.TOTAL_CHANNELS)
+cmap.insert(0, (0,0,0))
+cmap = colors.ListedColormap(cmap)
+bounds = [i for i in range(breakout.TOTAL_CHANNELS+2)]
+norm = colors.BoundaryNorm(bounds, breakout.TOTAL_CHANNELS+1)
+_, ax = plt.subplots(1,1)
+plt.show(block=False)
+
+for i, obs_i in enumerate(obs):
+    assert obs_i.shape == (10,10,4)
+    numerical_state = jnp.amax(
+        obs_i * jnp.reshape(jnp.arange(breakout.TOTAL_CHANNELS) + 1, (1, 1, -1)), axis=2) + 0.5
+    ax.imshow(
+        numerical_state, cmap=cmap, norm=norm, interpolation='none')
+    plt.pause(1)
+    plt.cla()
+    
+plt.close()
 
 breakpoint()
 
