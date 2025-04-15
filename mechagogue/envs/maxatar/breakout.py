@@ -48,6 +48,10 @@ def transition(key, state, action):
     pos = jnp.clip(pos, min=0, max=9)
     
     # Update ball position
+    # 0 : left up
+    # 1 : right up
+    # 2 : right down
+    # 3 : left down
     last_x = state.ball_x
     last_y = state.ball_y
     new_x = (last_x
@@ -89,20 +93,23 @@ def transition(key, state, action):
     
     hit_bottom = new_y == 9
     hit_bottom_and_empty = hit_bottom & (jnp.sum(brick_map) == 0)
+    # spawn new bricks if bottom is hit and there are no bricks left
     brick_map = (
         brick_map * ~hit_bottom_and_empty +
         brick_map.at[1:4,:].set(1) * hit_bottom_and_empty
     )
     
-    terminal = (
-        (new_y == 9) &
-        (state.pos != new_x) &
-        (pos != new_x)
+    hit_paddle = (new_y == 9) & ((state.pos == new_x) | (pos == new_x))
+    ball_dir = (
+        ball_dir * ~hit_paddle +
+        transition_2[ball_dir] * hit_paddle
     )
-    #    next_state.ball_y == 9 and
-    #    state.pos != next_state.ball_x and
-    #    next_state.pos != next_state.ball_x
-    #)
+    new_y = (
+        new_y * ~hit_paddle +
+        8 * hit_paddle  # move ball back up to y=8 after paddle hit
+    )
+    
+    terminal = (new_y == 9) & ~hit_paddle
     
     return BreakoutState(
         ball_y=new_y,
