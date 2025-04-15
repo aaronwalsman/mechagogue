@@ -17,8 +17,8 @@ def auto_reset_wrapper(
     def wrapped_reset(
         key: chex.PRNGKey,
     ):
-        wrapped_state, obs = reset(key)
-        return (wrapped_state, False), obs
+        wrapped_state, obs, done = reset(key)
+        return (wrapped_state, False), obs, done
     
     def wrapped_step(
         key: chex.PRNGKey,
@@ -33,7 +33,7 @@ def auto_reset_wrapper(
         # step and reset the wrapped environment
         step_state, step_obs, done, reward = step(
             step_key, wrapped_state, action)
-        reset_state, reset_obs = reset(reset_key)
+        reset_state, reset_obs, done = reset(reset_key)
         reset_done = jnp.zeros_like(done)
         reset_reward = jnp.zeros_like(reward)
         
@@ -56,8 +56,8 @@ def auto_reset_wrapper_overwrite_terminal(
         final_state: Any
     
     def wrapped_reset(key):
-        wrapped_state, obs = reset(key)
-        return (wrapped_state, wrapped_state), obs
+        wrapped_state, obs, done = reset(key)
+        return (wrapped_state, wrapped_state), obs, done
     
     def wrapped_step(
         key: chex.PRNGKey,
@@ -88,8 +88,8 @@ def episode_return_wrapper(
     step: Callable,
 ):
     def wrapped_reset(key):
-        wrapped_state, obs = reset(key)
-        return (wrapped_state, 0.), obs
+        wrapped_state, obs, done = reset(key)
+        return (wrapped_state, 0.), obs, done
     
     def wrapped_step(key, state, action):
         wrapped_state, returns = state
