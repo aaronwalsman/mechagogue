@@ -6,7 +6,7 @@ import jax.nn as jnn
 from mechagogue.dp.mdp import mdp
 from mechagogue.nn.linear import embedding_layer
 from mechagogue.nn.distributions import categorical
-from mechagogue.opt.sgd import sgd
+from mechagogue.optim.sgd import sgd
 from mechagogue.rl.dqn import DQNConfig, dqn
 from mechagogue.rl.vpg import VPGConfig, vpg
 
@@ -24,7 +24,7 @@ def countup(n):
     def terminal(state):
         return state == n
     
-    return mdp(init_state, transition, reward, terminal)
+    return mdp(init_state, transition, reward, terminal)  # returns reset, step funcs
 
 def countup_dqn(key, n=4):
     reset_env, step_env = countup(n)
@@ -58,7 +58,7 @@ def countup_dqn(key, n=4):
     dqn_state = init_dqn(init_key)
     
     print('before training')
-    print(dqn_state.model_params[0])
+    print(dqn_state.model_state[0])
     
     def train_epoch(dqn_state, key):
         dqn_state, loss = step_dqn(key, dqn_state)
@@ -71,8 +71,8 @@ def countup_dqn(key, n=4):
     )
     
     print('after training')
-    print(dqn_state.model_params[0])
-    print(dqn_state.target_params[0])
+    print(dqn_state.model_state[0])
+    print(dqn_state.target_state[0])
 
 def countup_vpg(key, n=3):
     reset_env, step_env = countup(n)
