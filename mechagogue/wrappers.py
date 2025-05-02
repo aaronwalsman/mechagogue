@@ -37,6 +37,8 @@ def auto_reset_wrapper(
         reset_done = jnp.zeros_like(done)
         reset_reward = jnp.zeros_like(reward)
         
+        # If previous_done was True, discard the `step` results and substitute the `reset` results
+        # Otherwise keep the `step` results
         wrapped_state, obs, done, reward = jax.tree.map(
             lambda r, s : jnp.where(previous_done, r, s),
             (reset_state, reset_obs, reset_done, reset_reward),
