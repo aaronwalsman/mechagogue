@@ -33,8 +33,7 @@ def auto_reset_wrapper(
         # step and reset the wrapped environment
         step_state, step_obs, done, reward = step(
             step_key, wrapped_state, action)
-        reset_state, reset_obs, done = reset(reset_key)
-        reset_done = jnp.zeros_like(done)
+        reset_state, reset_obs, reset_done = reset(reset_key)
         reset_reward = jnp.zeros_like(reward)
         
         # If previous_done was True, discard the `step` results and substitute the `reset` results

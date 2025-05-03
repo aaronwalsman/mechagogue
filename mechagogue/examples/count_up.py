@@ -26,7 +26,7 @@ def countup(n, reward_good=1.0, reward_bad=-1.0):
     
     def transition(state, action):
         # always just execute the action:
-        return jnp.array(action, dtype=jnp.int32)
+        # return jnp.array(action, dtype=jnp.int32)
         
         # only execute the action if it's 'correct'; otherwise remain in current state
         # return jnp.where(action == state+1,
@@ -34,9 +34,9 @@ def countup(n, reward_good=1.0, reward_bad=-1.0):
         #                 jnp.array(state, dtype=jnp.int32))
         
         # go to the next state if the action is correct, otherwise terminate the game
-        # return jnp.where(action == state+1,
-        #                  jnp.array(action, dtype=jnp.int32),
-        #                  jnp.array(n, dtype=jnp.int32))
+        return jnp.where(action == state+1,
+                         jnp.array(action, dtype=jnp.int32),
+                         jnp.array(n, dtype=jnp.int32))
     
     def reward(state, action):
         return jnp.where(action == state + 1,
@@ -54,7 +54,7 @@ def countup_dqn(key, n=4):
         batch_size=32,
         parallel_envs=8,
         replay_buffer_size=32*10000,
-        discount=0.0, # 0.9,
+        discount=0.9,
         target_update=0.1,
         epsilon=0.1
     )
