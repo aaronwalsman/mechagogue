@@ -13,7 +13,7 @@ def mlp(
     out_channels=None,
     use_bias=False,
     p_dropout=0,
-    init_weight=kaiming,
+    init_weights=kaiming,
     init_bias=zero,
     dtype=jnp.float32
 ):
@@ -25,7 +25,7 @@ def mlp(
             in_c,
             hidden_channels,
             use_bias=use_bias,
-            init_weight=init_weight,
+            init_weights=init_weights,
             init_bias=init_bias,
             dtype=dtype,
         ))

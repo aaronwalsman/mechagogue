@@ -3,3 +3,4 @@ __pycache__
 *.swp
 *.swp
 *.egg-info
+env/
