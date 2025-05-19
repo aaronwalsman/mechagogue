@@ -4,6 +4,7 @@ import jax.random as jrng
 import matplotlib.pyplot as plt
 from matplotlib import colors
 import seaborn as sns
+import imageio.v3 as iio
 
 import mechagogue.envs.maxatar.breakout as breakout
 from mechagogue.wrappers import auto_reset_wrapper
@@ -11,12 +12,12 @@ from mechagogue.wrappers import auto_reset_wrapper
 breakout_reset, breakout_step = auto_reset_wrapper(
     breakout.reset, breakout.step)
 
-def test_breakout(key):
-    
-    n = 1000
-    
+def test_breakout(key, n=100):
+    """
+        Generate n frames with a random-action policy; returns
+       (state, obs, done, action, reward) stacked along axis 0.
+    """
     key, init_key = jrng.split(key)
-    
     state, obs, done = breakout_reset(init_key)
     
     def scan_step(key_state_obs_done, _):
@@ -38,24 +39,35 @@ test_breakout = jax.jit(test_breakout)
 
 state, obs, done, action, rew = test_breakout(jrng.key(5678))
 
-cmap = sns.color_palette("cubehelix", breakout.TOTAL_CHANNELS)
+# visualize and save GIF
+cmap   = sns.color_palette("cubehelix", breakout.TOTAL_CHANNELS)
 cmap.insert(0, (0,0,0))
-cmap = colors.ListedColormap(cmap)
-bounds = [i for i in range(breakout.TOTAL_CHANNELS+2)]
-norm = colors.BoundaryNorm(bounds, breakout.TOTAL_CHANNELS+1)
-_, ax = plt.subplots(1,1)
+cmap   = colors.ListedColormap(cmap)
+bounds = list(range(breakout.TOTAL_CHANNELS + 2))
+norm   = colors.BoundaryNorm(bounds, breakout.TOTAL_CHANNELS + 1)
+
+fig, ax = plt.subplots(1, 1)
 plt.show(block=False)
 
+frames = []
+pause = 0.5  # s per frame
+
 for i, obs_i in enumerate(obs):
-    assert obs_i.shape == (10,10,4)
-    numerical_state = jnp.amax(
+    numeric = jnp.amax(
         obs_i * jnp.reshape(jnp.arange(breakout.TOTAL_CHANNELS) + 1, (1, 1, -1)), axis=2) + 0.5
-    ax.imshow(
-        numerical_state, cmap=cmap, norm=norm, interpolation='none')
-    plt.pause(1)
-    plt.cla()
-    
-plt.close()
 
-breakpoint()
+    ax.imshow(numeric, cmap=cmap, norm=norm, interpolation="none")
+    ax.set_title(f"Frame {i}")
+    ax.axis("off")
+    fig.canvas.draw()
 
+    # grab the pixel buffer & store it
+    frame = jnp.array(fig.canvas.buffer_rgba()).copy()
+    frames.append(frame)
+
+    plt.pause(pause)
+    ax.cla()
+
+plt.close(fig)
+
+iio.imwrite("out/traj_random.gif", frames, duration=pause)
