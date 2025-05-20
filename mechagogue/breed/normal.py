@@ -44,4 +44,5 @@ def test_auto_scale():
     std = jnp.std(weight.reshape(-1))
     print(f'std after: {std}')
 
-test_auto_scale()
+if __name__ == '__main__':
+    test_auto_scale()

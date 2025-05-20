@@ -1,9 +1,13 @@
+from functools import partial
 import itertools
 import argparse
 from typing import Any
 from dataclasses import dataclass, fields, is_dataclass
 
 import jax
+
+def is_static_dataclass(obj):
+    return getattr(obj, 'STATIC_DATACLASS', False)
 
 def static_dataclass(cls):
     cls = dataclass(frozen=True)(cls)
@@ -29,6 +33,28 @@ def static_dataclass(cls):
         field_dict.update(kwargs)
         return cls(**field_dict)
     
+    def override_children(obj, recurse=False):
+        updates = {}
+        for field in fields(obj):
+            child = getattr(obj, field.name)
+            if is_static_dataclass(child):
+                child_updates = {}
+                for child_field in fields(child):
+                    if hasattr(obj, child_field.name):
+                        child_updates[child_field.name] = getattr(
+                            obj, child_field.name)
+                        
+                updated_child = child.replace(**child_updates)
+                if recurse:
+                    updated_child = updated_child.override_children(
+                        recurse=True)
+                updates[field.name] = updated_child
+        
+        return obj.replace(**updates)
+    
+    def override_descendants(obj):
+        return obj.override_children(recurse=True)
+    
     def sweep(obj, **kwargs):
         results = []
         for value_combination in zip(*kwargs.values()):
@@ -45,9 +71,12 @@ def static_dataclass(cls):
         
         return results
     
+    cls.STATIC_DATACLASS = True
     cls.tree_flatten = tree_flatten
     cls.tree_unflatten = tree_unflatten
     cls.replace = replace
+    cls.override_children = override_children
+    cls.override_descendants = override_descendants
     
     jax.tree_util.register_pytree_node_class(cls)
 

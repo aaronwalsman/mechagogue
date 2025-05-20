@@ -31,16 +31,19 @@ def _tuple_parser(annotation):
     
     return parser
 
-def _add_commandline_args(obj, parser, prefixes=()):
+def _add_commandline_args(
+    obj, parser, skip_overrides=False, prefixes=(), skip_names=()):
     cls = obj.__class__
     assert is_dataclass(cls)
+    recursive_arguments = []
+    overrides = []
     for field in fields(cls):
         name_components = prefixes + (field.name,)
         argname = f'--{"-".join(name_components)}'
         default = getattr(obj, field.name)
         if is_dataclass(default.__class__):
             extended_prefixes = prefixes + (field.name,)
-            _add_commandline_args(default, parser, prefixes=extended_prefixes)
+            recursive_arguments.append((default, extended_prefixes))
         else:
             # this causes problems if the bool is True by default
             #if field.type == bool:
@@ -53,8 +56,19 @@ def _add_commandline_args(obj, parser, prefixes=()):
             #    parser_type = _tuple_parser
             #else:
             #    parser_type = field.type
-            type_parser = _annotation_type_parser(field.type)
-            parser.add_argument(argname, type=type_parser, default=default)
+            if field.name not in skip_names or not skip_overrides:
+                overrides.append(field.name)
+                type_parser = _annotation_type_parser(field.type)
+                parser.add_argument(argname, type=type_parser, default=default)
+    
+    for default, extended_prefixes  in recursive_arguments:
+        _add_commandline_args(
+            default,
+            parser,
+            skip_overrides=skip_overrides,
+            prefixes=extended_prefixes,
+            skip_names=skip_names + tuple(overrides)
+        )
     
     return parser
 
@@ -69,13 +83,13 @@ def _update_from_commandline(obj, args, prefixes=()):
         if is_dataclass(default.__class__):
             constructor_args[field.name] = _update_from_commandline(
                 default, args, prefixes=name_components)
-        else:
+        elif hasattr(args, attrname):
             constructor_args[field.name] = getattr(args, attrname)
 
     return cls(**constructor_args)
 
 def commandline_interface(cls):
-    def from_commandline(obj):
+    def from_commandline(obj, skip_overrides=False):
         # make the parser and add the load argument
         parser = argparse.ArgumentParser()
         parser.add_argument('--load', type=str, default=None)
@@ -86,7 +100,7 @@ def commandline_interface(cls):
             obj = load_example_data(obj, load_args.load)
         
         # add the other commandline args and parse them
-        _add_commandline_args(obj, parser)
+        _add_commandline_args(obj, parser, skip_overrides=skip_overrides)
         commandline_args = parser.parse_args()
         
         # update the (possibly loaded) parameters from the commandline
