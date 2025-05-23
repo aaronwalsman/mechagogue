@@ -5,10 +5,6 @@ import jax.random as jrng
 from mechagogue.dp.mdp import mdp
 from mechagogue.rl.vpg import vpg, VPGConfig
 
-# DAPHNE TODO: This is a quick example using a random (unlearned) policy.
-# Once we get this working (see bug in vpg.py) we need to make a copy of this
-# example, but that uses a flax MLP and actually does learning.
-
 def initialize_target_env(key, target):
     return jnp.array([0,0], dtype=jnp.int32)
 
