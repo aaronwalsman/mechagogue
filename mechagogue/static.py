@@ -6,10 +6,10 @@ from dataclasses import dataclass, fields, is_dataclass
 
 import jax
 
-def is_static_dataclass(obj):
-    return getattr(obj, 'STATIC_DATACLASS', False)
+def is_static_data(obj):
+    return getattr(obj, 'STATIC_DATA', False)
 
-def static_dataclass(cls):
+def static_data(cls):
     cls = dataclass(frozen=True)(cls)
 
     def tree_flatten(obj):
@@ -37,7 +37,7 @@ def static_dataclass(cls):
         updates = {}
         for field in fields(obj):
             child = getattr(obj, field.name)
-            if is_static_dataclass(child):
+            if is_static_data(child):
                 child_updates = {}
                 for child_field in fields(child):
                     if hasattr(obj, child_field.name):
@@ -63,7 +63,7 @@ def static_dataclass(cls):
         
         return results
     
-    def sweep_all_combinations(obj, **kwargs):
+    def sweep_combos(obj, **kwargs):
         results = []
         for value_combination in itertools.product(kwargs.values()):
             replace_kwargs = dict(zip(kwargs.keys(), value_combination))
@@ -71,13 +71,22 @@ def static_dataclass(cls):
         
         return results
     
-    cls.STATIC_DATACLASS = True
+    cls.STATIC_DATA = True
     cls.tree_flatten = tree_flatten
     cls.tree_unflatten = tree_unflatten
     cls.replace = replace
     cls.override_children = override_children
     cls.override_descendants = override_descendants
+    cls.sweep = sweep_list
+    cls.sweep_combos = sweep_combos
     
     jax.tree_util.register_pytree_node_class(cls)
 
+    return cls
+
+def static_functions(cls):
+    for name, value in cls.__dict__.items():
+        if callable(value):
+            setattr(cls, name, staticmethod(value))
+    
     return cls
