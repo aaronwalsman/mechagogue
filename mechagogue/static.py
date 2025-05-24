@@ -55,38 +55,25 @@ def static_data(cls):
     def override_descendants(obj):
         return obj.override_children(recurse=True)
     
-    def sweep(obj, **kwargs):
-        results = []
-        for value_combination in zip(*kwargs.values()):
-            replace_kwargs = dict(zip(kwargs.keys(), value_combination))
-            results.append(obj.replace(**replace_kwargs))
-        
-        return results
-    
-    def sweep_combos(obj, **kwargs):
-        results = []
-        for value_combination in itertools.product(kwargs.values()):
-            replace_kwargs = dict(zip(kwargs.keys(), value_combination))
-            results.append(obj.replace(**replace_kwargs))
-        
-        return results
-    
     cls.STATIC_DATA = True
     cls.tree_flatten = tree_flatten
     cls.tree_unflatten = tree_unflatten
     cls.replace = replace
     cls.override_children = override_children
     cls.override_descendants = override_descendants
-    cls.sweep = sweep_list
-    cls.sweep_combos = sweep_combos
     
     jax.tree_util.register_pytree_node_class(cls)
 
     return cls
 
+def is_static_functions(obj):
+    return getattr(obj, 'STATIC_FUNCTIONS', False)
+
 def static_functions(cls):
     for name, value in cls.__dict__.items():
         if callable(value):
             setattr(cls, name, staticmethod(value))
+    
+    cls.STATIC_FUNCTIONS = True
     
     return cls
