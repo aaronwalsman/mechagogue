@@ -15,20 +15,30 @@ from mechagogue.tree import tree_getitem, tree_setitem, ravel_tree
 
 @static_dataclass
 class DQNConfig:
+    # data collection
+    batch_size: int = 32
     parallel_envs: int = 32
-    num_q_models: int = 2
-    replay_buffer_size: int = 5000*32
+    replay_buffer_size: int = 32*5000
+    replay_start_size: int = 5000
     rollout_steps: int = 1
-    batches_per_step: int = 1
     # TODO:
     #initial_random_data: int = 1000*32,
     
+    # learning hyperparameters
     discount: float = 0.95
-    epsilon: float = 0.1
+    
+    # exploration
+    start_epsilon: float = 1.0
+    end_epsilon: float = 0.1
+    first_n_frames: int = 100000  # anneal length
+    
+    # target network
     target_update: float = 0.01
     target_update_frequency: int = 1000
     
-    batch_size: int = 32
+    num_q_models: int = 2
+    batches_per_step: int = 1  # frequency of gradient steps
+    
 
 @static_dataclass
 class DQNState:
@@ -131,6 +141,20 @@ def dqn(
         )
     
     def step(key, state):
+        # number of environment frames we have seen so far
+        frames_seen = (
+            state.current_step * config.rollout_steps * config.parallel_envs
+        )
+        
+        # ε-greedy schedule
+        delta = frames_seen - config.replay_start_size
+        frac  = jnp.clip(delta / config.first_n_frames, 0.0, 1.0)
+        epsilon = jnp.where(
+            frames_seen < config.replay_start_size,
+            config.start_epsilon,
+            (1.0 - frac) * config.start_epsilon + frac * config.end_epsilon,
+        )
+        
         single_model_state = tree_getitem(state.model_state, 0)
         
         # generate new data
@@ -143,7 +167,7 @@ def dqn(
             greedy = jnp.argmax(q, axis=-1)
             random = random_action(random_key)
             selector = jrng.bernoulli(
-                selector_key, shape=greedy.shape, p=config.epsilon)
+                selector_key, shape=greedy.shape, p=epsilon)
             action = jnp.where(selector, random, greedy)
             
             # take an environment step
