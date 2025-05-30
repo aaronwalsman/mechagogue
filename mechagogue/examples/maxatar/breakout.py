@@ -11,6 +11,10 @@
     Example:
         python breakout.py -e 1000000 --gif breakout_1M_epochs.gif
         
+        python breakout.py -e 1000000 --gif breakout_1M_epochs_cnn_tuned.gif
+        
+        python breakout.py -e 5000000 --gif breakout_5M_epochs_cnn.gif
+        
         Trains for 1M epochs then generates 10 episodes of gameplay and saves a GIF to 
         breakout_1M_epochs.gif with 0.5s between frames
 """
@@ -32,8 +36,7 @@ from mechagogue.optim.sgd import sgd
 from mechagogue.rl.dqn import DQNConfig, dqn
 import mechagogue.envs.maxatar.breakout as breakout
 from mechagogue.wrappers import auto_reset_wrapper
-from mechagogue.nn.mlp import mlp
-from mechagogue.nn.sequence import layer_sequence
+from mechagogue.nn.q_networks import q_network_mlp, q_network_cnn
 from mechagogue.tree import tree_getitem
 
 
@@ -186,28 +189,19 @@ def breakout_dqn(
         batches_per_step=BATCHES_PER_STEP,
     )
 
-    # Q‑network (flatten → MLP)
-    in_channels = 400  # 10×10×4
-    init_net, net = layer_sequence(
-        (
-            (lambda: None, lambda x: x.reshape(-1, in_channels)),
-            mlp(
-                hidden_layers=1,
-                in_channels=in_channels,
-                hidden_channels=256,
-                out_channels=6,
-                p_dropout=0.1,
-            ),
-        )
-    )
+    # Q‑network
+    num_actions = 6
+    
+    # init_net, net = q_network_mlp(10*10*4, num_actions)
+    init_net, net = q_network_cnn(breakout.TOTAL_CHANNELS, num_actions)
 
-    init_opt, optimise = sgd(learning_rate=LEARNING_RATE, momentum=MOMENTUM)
+    init_opt, optimize = sgd(learning_rate=LEARNING_RATE, momentum=MOMENTUM)
 
     def random_action(key):
         return jrng.randint(key, shape=(), minval=0, maxval=6)
 
     init_dqn, step_dqn = dqn(
-        cfg, reset_env, step_env, init_net, net, init_opt, optimise, random_action
+        cfg, reset_env, step_env, init_net, net, init_opt, optimize, random_action
     )
 
     # Training

@@ -113,6 +113,7 @@ def conv_layer(
     
     def model(x, state):
         weight, bias = state
+        x = x.astype(weight.dtype)
         
         num_dims = len(x.shape)
         if num_dims == 3:
