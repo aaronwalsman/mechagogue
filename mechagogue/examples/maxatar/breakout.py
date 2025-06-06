@@ -62,6 +62,7 @@ RMS_EPS = 0.01
 RMS_CENTERED = True
 
 STICKY_P = 0.10        # ← set 0.0 to disable
+RAMPING = True
 
 # tuned config 1 (following MinAtar)
 # BATCH_SIZE = 32
@@ -80,6 +81,7 @@ STICKY_P = 0.10        # ← set 0.0 to disable
 # MOMENTUM = 0.9
 
 # STICKY_P = 0.0
+# RAMPING = False
 
 # old config
 # BATCH_SIZE = 32
@@ -98,6 +100,7 @@ STICKY_P = 0.10        # ← set 0.0 to disable
 # MOMENTUM = 0
 
 # STICKY_P = 0.0
+# RAMPING = False
 
 # Visualization helpers
 def build_palette(n_channels: int) -> np.ndarray:
@@ -196,7 +199,8 @@ def breakout_dqn(
     gif_path: str | None,
     delay: float,
 ):
-    reset_env, step_env = auto_reset_wrapper(breakout.reset, breakout.step)
+    reset_base, step_base = breakout.make_env(ramping=RAMPING)
+    reset_env,  step_env  = auto_reset_wrapper(reset_base, step_base)
 
     if STICKY_P > 0.0:
         reset_env, step_env = sticky_action_wrapper(reset_env, step_env, prob=STICKY_P)
