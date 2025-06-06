@@ -26,14 +26,17 @@ class DQNConfig:
     
     # learning hyperparameters
     discount: float = 0.95
-    
+    step_size: float = 0.00025        # alpha / lr parameter for RMSProp
+    rms_alpha: float = 0.95           # smoothing constant (minatar: SQUARED_GRAD_MOMENTUM)
+    rms_eps: float = 0.01             # term added to denominator (minatar: MIN_SQUARED_GRAD)
+    rms_centered: bool = True         # use centered RMSProp
+
     # exploration
     start_epsilon: float = 1.0
     end_epsilon: float = 0.1
     first_n_frames: int = 100000  # anneal length
     
     # target network
-    target_update: float = 0.01
     target_update_frequency: int = 1000
     
     num_q_models: int = 2
@@ -50,6 +53,19 @@ class DQNState:
     optim_state : Any = None
     replay_buffer : Any = None
     current_step : int = 0
+    policy_steps : int = 0  # count of gradient updates so far
+
+
+def huber_loss(error: jnp.ndarray, delta: float = 1.0) -> jnp.ndarray:
+    """Compute element-wise Huber loss."""
+    abs_err = jnp.abs(error)
+    is_small = abs_err <= delta
+    # quadratic part: 0.5 * error^2    for |error| <= delta  
+    # linear part: delta*(|error| - 0.5*delta) for |error| > delta
+    return jnp.where(is_small,
+                     0.5 * error**2,
+                     delta * (abs_err - 0.5 * delta))
+
 
 def dqn(
     config,
@@ -205,6 +221,7 @@ def dqn(
                 data_key,
                 config.replay_buffer_size,
                 shape=(config.batch_size,),
+                replace=False,
             )
             obs, action, reward, next_obs, done, next_done = tree_getitem(
                 replay_buffer, replay_buffer_indices)
@@ -219,7 +236,9 @@ def dqn(
             def q_loss(model_key, model_state, obs, action, done, target):
                 q = model(model_key, obs, model_state)
                 q = q[:,jnp.arange(config.batch_size), action]
-                loss = (~done) * (q - target)**2
+                TD_error = q - target
+                # Huber loss per element, then mask out terminal transitions
+                loss = huber_loss(TD_error) * (~done)
                 return loss.mean()
             
             loss, grad = jax.value_and_grad(q_loss, argnums=1)(
@@ -229,15 +248,6 @@ def dqn(
             model_state, optim_state = optim(
                 optim_key, grad, model_state, optim_state)
             
-            # update the target network
-            def interpolate_leaf(target_leaf, model_leaf):
-                return (
-                    target_leaf * (1. - config.target_update) +
-                    model_leaf * config.target_update
-                )
-            target_state = jax.tree.map(
-                interpolate_leaf, target_state, model_state)
-            
             return (model_state, target_state, optim_state), loss
         
         key, batch_key = jrng.split(key)
@@ -246,7 +256,17 @@ def dqn(
             (state.model_state, state.target_state, state.optim_state),
             jrng.split(batch_key, config.batches_per_step),
         )
-        model_state, target_state, optim_state = model_target_optim_state
+        model_state, target_state_old, optim_state = model_target_optim_state
+        
+        # Hard‐update target every TARGET_UPDATE_FREQUENCY gradient steps
+        policy_steps_new = state.policy_steps + config.batches_per_step
+        should_update = (policy_steps_new % config.target_update_frequency) == 0
+        # if should_update, copy model → target, else keep old
+        target_state = jax.lax.cond(
+            should_update,
+            lambda: model_state,
+            lambda: target_state_old
+        )
         
         return DQNState(
             env_state,
@@ -257,6 +277,7 @@ def dqn(
             optim_state,
             replay_buffer,
             state.current_step + 1,
+            policy_steps_new,
         ), batch_losses
     
     return init, step

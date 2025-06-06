@@ -62,13 +62,13 @@ def q_network_cnn(in_channels: int, num_actions: int):
                 kernel_size=(3, 3),
                 stride=(1, 1),
                 padding='VALID',
-                use_bias=False,
+                use_bias=True,
             ),
             relu_layer(),
             (lambda: None, lambda x: x.reshape(-1, fc_in)),  # flatten NHWC -> (…, 1024)
-            linear_layer(fc_in, fc_out, use_bias=False),  # fully-connected 128
+            linear_layer(fc_in, fc_out, use_bias=True),  # fully-connected 128
             relu_layer(),
-            linear_layer(fc_out, num_actions, use_bias=False),  # output layer
+            linear_layer(fc_out, num_actions, use_bias=True),  # output layer
         )
     )
 

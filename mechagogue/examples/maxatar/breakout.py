@@ -33,6 +33,7 @@ import numpy as np
 import seaborn as sns
 
 from mechagogue.optim.sgd import sgd
+from mechagogue.optim.rmsprop import rmsprop
 from mechagogue.rl.dqn import DQNConfig, dqn
 import mechagogue.envs.maxatar.breakout as breakout
 from mechagogue.wrappers import auto_reset_wrapper
@@ -43,21 +44,38 @@ from mechagogue.tree import tree_getitem
 # DQN hyper‑parameters
 NUM_EPOCHS_DEFAULT = 500_000
 
-# tuned config (following MinAtar)
+# tuned config 2 (following MinAtar)
 BATCH_SIZE = 32
-PARALLEL_ENVS = 8
+PARALLEL_ENVS = 1
 REPLAY_BUFFER_SIZE = 100_000
 REPLAY_START_SIZE = 5_000
 DISCOUNT = 0.99
 START_EPSILON = 1.0
 END_EPSILON = 0.1
 FIRST_N_FRAMES = 100_000
-TARGET_UPDATE = 0.1
 TARGET_UPDATE_FREQUENCY = 1_000
 BATCHES_PER_STEP = 1
 
-LEARNING_RATE = 3e-3
-MOMENTUM = 0.9
+STEP_SIZE = 0.00025
+RMS_ALPHA = 0.95
+RMS_EPS = 0.01
+RMS_CENTERED = True
+
+# tuned config 1 (following MinAtar)
+# BATCH_SIZE = 32
+# PARALLEL_ENVS = 8
+# REPLAY_BUFFER_SIZE = 100_000
+# REPLAY_START_SIZE = 5_000
+# DISCOUNT = 0.99
+# START_EPSILON = 1.0
+# END_EPSILON = 0.1
+# FIRST_N_FRAMES = 100_000
+# TARGET_UPDATE = 0.1
+# TARGET_UPDATE_FREQUENCY = 1_000
+# BATCHES_PER_STEP = 1
+
+# LEARNING_RATE = 3e-3
+# MOMENTUM = 0.9
 
 # old config
 # BATCH_SIZE = 32
@@ -184,9 +202,12 @@ def breakout_dqn(
         start_epsilon=START_EPSILON,
         end_epsilon=END_EPSILON,
         first_n_frames=FIRST_N_FRAMES,
-        target_update=TARGET_UPDATE,
         target_update_frequency=TARGET_UPDATE_FREQUENCY,
         batches_per_step=BATCHES_PER_STEP,
+        step_size=STEP_SIZE,
+        rms_alpha=RMS_ALPHA,
+        rms_eps=RMS_EPS,
+        rms_centered=RMS_CENTERED,
     )
 
     # Q‑network
@@ -195,7 +216,14 @@ def breakout_dqn(
     # init_net, net = q_network_mlp(10*10*4, num_actions)
     init_net, net = q_network_cnn(breakout.TOTAL_CHANNELS, num_actions)
 
-    init_opt, optimize = sgd(learning_rate=LEARNING_RATE, momentum=MOMENTUM)
+    # init_opt, optimize = sgd(learning_rate=LEARNING_RATE, momentum=MOMENTUM)
+    init_opt, optimize = rmsprop(
+        learning_rate=cfg.step_size,
+        alpha=cfg.rms_alpha,
+        eps=cfg.rms_eps,
+        centered=cfg.rms_centered,
+    )
+
 
     def random_action(key):
         return jrng.randint(key, shape=(), minval=0, maxval=6)
@@ -245,7 +273,9 @@ def main() -> None:
     jax.config.update("jax_enable_x64", True)
     jnp.set_printoptions(precision=12, linewidth=120, suppress=True)
 
-    master_key = jrng.key(1234)
+    # 1234
+    # 2134
+    master_key = jrng.key(2134)
     returns = breakout_dqn(
         master_key,
         num_epochs=args.epochs,
