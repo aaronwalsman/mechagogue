@@ -36,7 +36,7 @@ from mechagogue.optim.sgd import sgd
 from mechagogue.optim.rmsprop import rmsprop
 from mechagogue.rl.dqn import DQNConfig, dqn
 import mechagogue.envs.maxatar.breakout as breakout
-from mechagogue.wrappers import auto_reset_wrapper
+from mechagogue.wrappers import auto_reset_wrapper, sticky_action_wrapper
 from mechagogue.nn.q_networks import q_network_mlp, q_network_cnn
 from mechagogue.tree import tree_getitem
 
@@ -61,6 +61,8 @@ RMS_ALPHA = 0.95
 RMS_EPS = 0.01
 RMS_CENTERED = True
 
+STICKY_P = 0.10        # ← set 0.0 to disable
+
 # tuned config 1 (following MinAtar)
 # BATCH_SIZE = 32
 # PARALLEL_ENVS = 8
@@ -76,6 +78,8 @@ RMS_CENTERED = True
 
 # LEARNING_RATE = 3e-3
 # MOMENTUM = 0.9
+
+# STICKY_P = 0.0
 
 # old config
 # BATCH_SIZE = 32
@@ -93,6 +97,7 @@ RMS_CENTERED = True
 # LEARNING_RATE = 1e-2
 # MOMENTUM = 0
 
+# STICKY_P = 0.0
 
 # Visualization helpers
 def build_palette(n_channels: int) -> np.ndarray:
@@ -192,6 +197,9 @@ def breakout_dqn(
     delay: float,
 ):
     reset_env, step_env = auto_reset_wrapper(breakout.reset, breakout.step)
+
+    if STICKY_P > 0.0:
+        reset_env, step_env = sticky_action_wrapper(reset_env, step_env, prob=STICKY_P)
 
     cfg = DQNConfig(
         batch_size=BATCH_SIZE,
