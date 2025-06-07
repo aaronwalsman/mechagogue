@@ -64,6 +64,8 @@ RMS_CENTERED = True
 STICKY_P = 0.10        # ← set 0.0 to disable
 RAMPING = True
 
+NUM_Q_MODELS = 1
+
 # tuned config 1 (following MinAtar)
 # BATCH_SIZE = 32
 # PARALLEL_ENVS = 8
@@ -83,6 +85,8 @@ RAMPING = True
 # STICKY_P = 0.0
 # RAMPING = False
 
+# NUM_Q_MODELS = 2
+
 # old config
 # BATCH_SIZE = 32
 # PARALLEL_ENVS = 8
@@ -101,6 +105,8 @@ RAMPING = True
 
 # STICKY_P = 0.0
 # RAMPING = False
+
+# NUM_Q_MODELS = 2
 
 # Visualization helpers
 def build_palette(n_channels: int) -> np.ndarray:
@@ -199,8 +205,7 @@ def breakout_dqn(
     gif_path: str | None,
     delay: float,
 ):
-    reset_base, step_base = breakout.make_env(ramping=RAMPING)
-    reset_env,  step_env  = auto_reset_wrapper(reset_base, step_base)
+    reset_env, step_env = breakout.make_env(ramping=RAMPING)
 
     if STICKY_P > 0.0:
         reset_env, step_env = sticky_action_wrapper(reset_env, step_env, prob=STICKY_P)
@@ -220,6 +225,7 @@ def breakout_dqn(
         rms_alpha=RMS_ALPHA,
         rms_eps=RMS_EPS,
         rms_centered=RMS_CENTERED,
+        num_q_models=NUM_Q_MODELS,
     )
 
     # Q‑network
@@ -282,7 +288,7 @@ def main() -> None:
     parser.add_argument("--gif", type=str, default=None, help="Output GIF filename; omit to disable recording")
     args = parser.parse_args()
 
-    jax.config.update("jax_enable_x64", True)
+    # jax.config.update("jax_enable_x64", True)
     jnp.set_printoptions(precision=12, linewidth=120, suppress=True)
 
     # 1234

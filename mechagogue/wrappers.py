@@ -51,48 +51,30 @@ def auto_reset_wrapper(
 # ---------------------------------------------------------------------------
 # Sticky-action wrapper, matching MinAtar: repeat previous action with prob p
 # ---------------------------------------------------------------------------
-def sticky_action_wrapper(
-    reset: Callable,
-    step: Callable,
-    prob: float = 0.1,
-):
-    """
-    Wrap the environment `step` so that the effective action is
-    either the one the agent proposed (`action`) or, with probability `prob`,
-    the previous effective action.
-    Works transparently with vectorized envs (extra batch dim).
-    """
+def sticky_action_wrapper(reset, step, prob=0.1):
+    def _init_last_action_like(arr):
+        return jnp.zeros_like(arr)
 
-    def _init_last_action(first_action):
-        # Ensure same dtype/shape as action space (scalar or batched)
-        return jnp.zeros_like(first_action)
-
-    def wrapped_step(
-        key: chex.PRNGKey,
-        state: Any,
-        action: Any,
-    ):
-        env_state, last_action = state
-        key, sticky_key = jrng.split(key)
-
-        # decide which action to feed into the base env
-        repeat_prev = jrng.uniform(sticky_key, shape=()) < prob
-        eff_action  = jnp.where(repeat_prev, last_action, action)
-
-        # step the base environment
-        next_env_state, obs, done, reward = step(key, env_state, eff_action)
-
-        # when an episode terminates, reset last_action to zero
-        next_last_action = jnp.where(done, _init_last_action(eff_action), eff_action)
-
-        return (next_env_state, next_last_action), obs, done, reward
-
-    # expose an initializer so callers can build the composite state
     def wrapped_reset(key):
         env_state, obs, done = reset(key)
-        return (env_state, _init_last_action(0)), obs, done
+        # we don’t know the action dtype until we see one; keep scalar 0
+        return (env_state, jnp.array(0, dtype=jnp.int32)), obs, done
 
-    # we only modify `step`, keep original `reset` unchanged
+    def wrapped_step(key, state, action):
+        env_state, last_action = state
+        key, sk = jrng.split(key)
+
+        # choose per-environment whether to repeat
+        repeat_prev = jrng.uniform(sk, shape=action.shape) < prob
+        eff_action  = jnp.where(repeat_prev, last_action, action)
+
+        next_env_state, obs, done, rew = step(key, env_state, eff_action)
+
+        next_last_action = jnp.where(done,
+                                     _init_last_action_like(eff_action),
+                                     eff_action)
+        return (next_env_state, next_last_action), obs, done, rew
+
     return wrapped_reset, wrapped_step
 
 def auto_reset_wrapper_overwrite_terminal(
