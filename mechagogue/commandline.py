@@ -88,8 +88,8 @@ def _update_from_commandline(obj, args, prefixes=()):
 
     return cls(**constructor_args)
 
-def commandline_interface(cls):
-    def from_commandline(obj, skip_overrides=False):
+def commandline_interface(cls, override_descendants=False):
+    def from_commandline(obj):
         # make the parser and add the load argument
         parser = argparse.ArgumentParser()
         parser.add_argument('--load', type=str, default=None)
@@ -100,11 +100,13 @@ def commandline_interface(cls):
             obj = load_example_data(obj, load_args.load)
         
         # add the other commandline args and parse them
-        _add_commandline_args(obj, parser, skip_overrides=skip_overrides)
+        _add_commandline_args(obj, parser, skip_overrides=override_descendants)
         commandline_args = parser.parse_args()
         
         # update the (possibly loaded) parameters from the commandline
         obj = _update_from_commandline(obj, commandline_args)
+        if override_descendants:
+            obj = obj.override_descendants()
         return obj
     
     cls.from_commandline = from_commandline
