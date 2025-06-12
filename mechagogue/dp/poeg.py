@@ -4,7 +4,7 @@ import jax.random as jrng
 
 from mechagogue.arg_wrappers import ignore_unused_args
 
-def population_game(
+def poeg(
     init_state: Callable,
     transition: Callable,
     observe: Callable,
