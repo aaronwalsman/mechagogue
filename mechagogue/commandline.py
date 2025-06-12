@@ -11,10 +11,11 @@ def _annotation_type_parser(annotation):
     elif (
         annotation is str or
         annotation is int or
-        annotation is float or
-        annotation is bool,
+        annotation is float
     ):
         return annotation
+    elif annotation is bool:
+        return lambda x : bool(int(x))
     else:
         raise Exception(f'Unsupported commandline type: {annotation}')
 
@@ -58,7 +59,11 @@ def _add_commandline_args(
             #    parser_type = field.type
             if field.name not in skip_names or not skip_overrides:
                 overrides.append(field.name)
-                type_parser = _annotation_type_parser(field.type)
+                try:
+                    type_parser = _annotation_type_parser(field.type)
+                except:
+                    print(field.name)
+                    raise
                 parser.add_argument(argname, type=type_parser, default=default)
     
     for default, extended_prefixes  in recursive_arguments:
