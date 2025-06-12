@@ -1,7 +1,8 @@
 import jax.nn as jnn
 
-def relu_layer():
-    def model(x):
+from mechagogue.static import static_functions
+
+@static_functions
+class ReluLayer:
+    def forward(x):
         return jnn.relu(x)
-    
-    return lambda : None, model

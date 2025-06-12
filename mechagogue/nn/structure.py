@@ -1,60 +1,70 @@
+from typing import Tuple, Dict, Any
+
 import jax.random as jrng
 
-from mechagogue.arg_wrappers import ignore_unused_args
+from mechagogue.static import static_functions
+from mechagogue.standardize import standardize_args
+from mechagogue.nn.layer import standardize_layer, make_layer
 
-def parallel_tuple_layer(layers):
+def split_tuple(n):
+    return make_layer(forward=lambda x : (x,)*n)
+
+def split_dict(*keys):
+    return make_layer(forward=lambda x : {key:x for key in keys}
+
+def tuple_layer(layers):
     num_layers = len(layers)
+    layers = [standardize_layer(layer) for layer in layers]
     
-    init_layers = [
-        ignore_unused_args(init_layer, ('key',))
-        for init_layer, _ in layers
-    ]
+    @static_functions
+    class TupleLayer:
+        
+        @static_data
+        class TupleState:
+            layer_states : Tuple[Any]
+        
+        def init(key):
+            layer_keys = jrng.split(key, num_layers)
+            return TupleState(tuple(layer.init(layer_key)
+                for layer, layer_key
+                in zip(layers, layer_keys)
+            ))
+        
+        def forward(key, x, state):
+            layer_keys = jrng.split(key, num_layers)
+            return (
+                layer.forward(layer_key, xi, layer_state)
+                for xi, layer, layer_key, layer_state
+                in zip(x, layers, layer_keys, state.layer_states)
+            )
     
-    model_layers = [
-        ignore_unused_args(model_layer, ('key', 'x', 'state'))
-        for _, model_layer in layers
-    ]
-    
-    def init(key):
-        head_keys = jrng.split(key, num_layers)
-        return (init_layer(head_key)
-            for init_layer, head_key
-            in zip(init_layers, head_keys)
-        )
-    
-    def model(key, x, state):
-        head_keys = jrng.split(key, num_layers)
-        return (
-            model_layer(head_key, xi, head_state)
-            for xi, model_layer, head_key, head_state
-            in zip(x, model_layers, head_keys, state)
-        )
-    
-    return init, model
+    return TupleLayer
 
-def parallel_dict_layer(layers):
-    init_layers = {
-        name : ignore_unused_args(init_layer, ('key',))
-        for name, (init_layer, _) in layers.items()
-    }
-    model_layers = {
-        name : ignore_unused_args(model_layer, ('key', 'x', 'state'))
-        for name, (_, model_layer) in layers.items()
-    }
+def dict_layer(layers):
+    layers = {key:standardize_layer(layer) for key, layer in layers.items()}
     
-    def init(key):
-        head_keys = jrng.split(key, len(layers))
-        return {name : init_layer(head_key)
-            for (name, init_layer), head_key
-            in zip(init_layers.items(), head_keys)
-        }
+    @static_functions
+    class DictLayer:
+        
+        @static_data
+        class DictState:
+            layer_states : Dict[Any, Any]
+        
+        def init(key):
+            layer_keys = jrng.split(key, len(layers))
+            return DictState({
+                name : layer.init(layer_key)
+                for (name, layer), layer_key
+                in zip(layers.items(), layer_keys)
+            })
+        
+        def forward(key, x, state):
+            layer_keys = jrng.split(key, len(layers))
+            return {
+                name : layer.forward(
+                    layer_key, x[name], state.layer_states[name])
+                for (name, layer), layer_key
+                in zip(layers.items(), layer_keys)
+            }
     
-    def model(key, x, state):
-        head_keys = jrng.split(key, len(layers))
-        return {
-            name : model_layer(head_key, x[name], state[name])
-            for (name, model_layer), head_key
-            in zip(model_layers.items(), head_keys)
-        }
-    
-    return init, model
+    return DictLayer
