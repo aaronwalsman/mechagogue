@@ -2,9 +2,20 @@ from typing import Any, Callable
 
 import jax.random as jrng
 
-from mechagogue.arg_wrappers import ignore_unused_args
+from mechagogue.standardize import standardize_args
+from mechagogue.static import static_functions, static_data
 
-def poeg(
+default_init = lambda : None
+default_step = lambda state : state
+
+def standardize_poeg(poeg):
+    return standardize_interface(
+        poeg,
+        init = (('key',), default_init),
+        step = (('key', 'state', 'action', 'traits'), default_step),
+    )
+
+def make_poeg(
     init_state: Callable,
     transition: Callable,
     observe: Callable,
@@ -23,40 +34,42 @@ def poeg(
         given a random key and a state
     '''
     
-    init_state = ignore_unused_args(init_state,
+    init_state = standardize_args(init_state,
         ('key',))
-    transition = ignore_unused_args(transition,
+    transition = standardize_args(transition,
         ('key', 'state', 'action', 'traits'))
-    observe = ignore_unused_args(observe,
+    observe = standardize_args(observe,
         ('key', 'state'))
-    active_players = ignore_unused_args(active_players,
+    active_players = standardize_args(active_players,
         ('state',))
-    family_info = ignore_unused_args(family_info,
+    family_info = standardize_args(family_info,
         ('state', 'action', 'next_state'))
     
-    def reset(key):
-        # generate new keys
-        state_key, observe_key = jrng.split(key)
+    @static_functions
+    class POEG:
+        def init(key):
+            # generate new keys
+            state_key, observe_key = jrng.split(key)
+            
+            # generate the first state, observation and live vector
+            state = init_state(state_key)
+            obs = observe(observe_key, state)
+            players = active_players(state)
+            
+            # return
+            return state, obs, players
         
-        # generate the first state, observation and live vector
-        state = init_state(state_key)
-        obs = observe(observe_key, state)
-        players = active_players(state)
-        
-        # return
-        return state, obs, players
+        def step(key, state, action, traits):
+            # generate new keys
+            transition_key, observe_key = jrng.split(key)
+            
+            # generate the next state and observation
+            next_state = transition(transition_key, state, action, traits)
+            obs = observe(observe_key, next_state)
+            players = active_players(next_state)
+            parents, children = family_info(state, action, next_state)
+            
+            # return
+            return next_state, obs, players, parents, children
     
-    def step(key, state, action, traits):
-        # generate new keys
-        transition_key, observe_key = jrng.split(key)
-        
-        # generate the next state and observation
-        next_state = transition(transition_key, state, action, traits)
-        obs = observe(observe_key, next_state)
-        players = active_players(next_state)
-        parents, children = family_info(state, action, next_state)
-        
-        # return
-        return next_state, obs, players, parents, children
-    
-    return reset, step
+    return POEG

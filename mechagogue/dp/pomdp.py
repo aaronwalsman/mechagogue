@@ -1,22 +1,29 @@
-'''
-A partially observable markov decision process
-'''
-
 from typing import Any, Callable, Tuple
 
 import jax.random as jrng
 
-from mechagogue.arg_wrappers import ignore_unused_args
+from mechagogue.standardize import standardize_args
+from mechagogue.static import static_functions, static_data
 
-def pomdp(
+default_init = lambda : None
+default_step = lambda state : state
+
+def standardize_pomdp(pomdp):
+    return standardize_interface(
+        pomdp,
+        init = (('key',), default_init),
+        step = (('key', 'state', 'action'), default_step),
+    )
+
+def make_pomdp(
     init_state : Callable,
     transition : Callable,
     observe : Callable,
-    reward : Callable = lambda : 0.,
     terminal : Callable = lambda : False,
-) -> Tuple[Callable, Callable] :
+    reward : Callable = lambda : 0.,
+):
     '''
-    Builds reset and step functions for a partially observable markov decision
+    Builds a partially observable markov decision
     process (POMDP) from its various components.
     
     [wikipedia](www.wikipedia.com/pomdp)
@@ -43,7 +50,7 @@ def pomdp(
     
     The returned environment will have the following static methods:
     
-    reset(key) -> state, obs, done:
+    init(key) -> state, obs, done:
         Samples an initial state and observation.
     
     step(key, state, action) -> state, obs, done, reward:
@@ -51,18 +58,15 @@ def pomdp(
         state and action.
     '''
     
-    init_state = ignore_unused_args(init_state, ('key'))
-    transition = ignore_unused_args(
-        transition, ('key', 'state', 'action'))
-    observe = ignore_unused_args(observe, ('key', 'state'))
-    terminal = ignore_unused_args(
-        terminal, ('key', 'state'))
-    reward = ignore_unused_args(
-        reward, ('key', 'state', 'action', 'next_state'))
+    init_state = standardize_args(init_state, ('key'))
+    transition = standardize_args(transition, ('key', 'state', 'action'))
+    observe = standardize_args(observe, ('key', 'state'))
+    terminal = standardize_args(terminal, ('key', 'state'))
+    reward = standardize_args(reward, ('key', 'state', 'action', 'next_state'))
     
     @static_functions
-    class Env:
-        def reset(key):
+    class POMDP:
+        def init(key):
             # generate new keys
             initialize_key, observe_key = jrng.split(key, 2)
             
@@ -89,4 +93,4 @@ def pomdp(
             # return
             return next_state, obs, done, rew
     
-    return Env
+    return POMDP
