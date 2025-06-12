@@ -70,6 +70,7 @@ def is_static_functions(obj):
     return getattr(obj, 'STATIC_FUNCTIONS', False)
 
 def static_functions(cls):
+    
     for name, value in cls.__dict__.items():
         if callable(value):
             setattr(cls, name, staticmethod(value))
