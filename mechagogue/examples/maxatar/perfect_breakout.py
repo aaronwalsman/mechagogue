@@ -7,11 +7,11 @@ import seaborn as sns
 import imageio.v3 as iio
 
 import mechagogue.envs.maxatar.breakout as breakout
-from mechagogue.wrappers import auto_reset_wrapper
+from mechagogue.wrappers import auto_reset_wrapper, sticky_action_wrapper
 
 # Get the reset and step functions from make_env
 reset_env, step_env = breakout.make_env(ramping=True, perfect=True)
-breakout_reset, breakout_step = auto_reset_wrapper(reset_env, step_env)
+breakout_reset, breakout_step = auto_reset_wrapper(reset_env, step_env)  # sticky_action_wrapper(reset_env, step_env, prob=0.1)
 
 def perfect_breakout(key):
     """
@@ -26,7 +26,7 @@ def perfect_breakout(key):
     def scan_step(key_state_obs_done, _):
         key, state, obs, done = key_state_obs_done
         key, action_key, step_key = jrng.split(key, 3)
-        action = 0  # no-op; perfect = True will move the paddle below the ball for us
+        action = jnp.array(0, dtype=jnp.int32)  # no-op; perfect = True will move the paddle below the ball for us
         next_state, next_obs, next_done, rew = breakout_step(
             step_key, state, action)
         
