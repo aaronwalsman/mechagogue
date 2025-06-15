@@ -126,7 +126,7 @@ def _single_ball_update(state, pos):
 # ============================================================
 # 2.  External transition (moves the ball `speed` cells / step)
 # ============================================================
-def transition(key, state, action, *, ramping=True):
+def transition(key, state, action, *, ramping=True, perfect=False):
     """
     Environment-level step:
     • resolves player action → paddle position
@@ -136,7 +136,15 @@ def transition(key, state, action, *, ramping=True):
     `key` is ignored (kept for POMDP signature compatibility).
     """
     # Update paddle according to action (noop / left / right)
-    pos = state.pos - (action == 2) + (action == 4)
+    is_moving_left = (state.ball_dir == 0) | (state.ball_dir == 3)
+    # Get the paddle position that will be below the ball
+    perfect_pos = jnp.where(is_moving_left,
+                          state.ball_x - 1,
+                          state.ball_x + 1)
+    # Use the perfect position if perfect=True, otherwise use the action
+    pos = jnp.where(perfect,
+                   perfect_pos,
+                   state.pos - (action == 2) + (action == 4))
     pos = jnp.clip(pos, 0, 9)
 
     # Advance the ball `speed` times (speed ∈ {1,2,3})
@@ -181,9 +189,10 @@ def render(obs):
     )
 
 # -------------------------------------------------------------------
-# Factory: build a (reset, step) pair with or without ramping
+# Factory: build a (reset, step) pair with or without ramping and 
+# perfect-action policy.
 # -------------------------------------------------------------------
-def make_env(*, ramping: bool = True):
+def make_env(*, ramping: bool = True, perfect: bool = False):
     """
     Returns (reset, step) functions whose `transition` uses the
     supplied `ramping` flag.
@@ -193,7 +202,7 @@ def make_env(*, ramping: bool = True):
     """
     # bind the flag via a closure / partial
     def _transition(key, state, action):
-        return transition(key, state, action, ramping=ramping)
+        return transition(key, state, action, ramping=ramping, perfect=perfect)
 
     return pomdp(
         init_state,
