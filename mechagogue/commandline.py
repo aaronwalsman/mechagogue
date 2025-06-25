@@ -5,22 +5,27 @@ from dataclasses import fields, is_dataclass
 
 from mechagogue.serial import load_example_data
 
-def _annotation_type_parser(annotation):
+def _annotation_type_parser(annotation, name):
     if get_origin(annotation) is tuple:
-        return _tuple_parser(annotation)
+        return _tuple_parser(annotation, name)
+    
     elif (
         annotation is str or
         annotation is int or
-        annotation is float or
-        annotation is bool,
+        annotation is float
     ):
         return annotation
+    
+    elif annotation is bool:
+        return lambda x : bool(int(x))
+    
     else:
-        raise Exception(f'Unsupported commandline type: {annotation}')
+        raise Exception(
+            f'Unsupported commandline type: {annotation} named: {name}')
 
-def _tuple_parser(annotation):
+def _tuple_parser(annotation, name):
     args = get_args(annotation)
-    arg_parsers = [_annotation_type_parser(arg) for arg in args]
+    arg_parsers = [_annotation_type_parser(arg, name) for arg in args]
     def parser(value):
         components = value.split(',')
         assert len(components) == len(args)
@@ -58,7 +63,7 @@ def _add_commandline_args(
             #    parser_type = field.type
             if field.name not in skip_names or not skip_overrides:
                 overrides.append(field.name)
-                type_parser = _annotation_type_parser(field.type)
+                type_parser = _annotation_type_parser(field.type, field.name)
                 parser.add_argument(argname, type=type_parser, default=default)
     
     for default, extended_prefixes  in recursive_arguments:
