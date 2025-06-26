@@ -1,5 +1,3 @@
-import math
-
 import jax
 import jax.numpy as jnp
 import jax.random as jrng
@@ -58,7 +56,8 @@ def pad_tree(tree, target_elements, axis=0, pad_value=0):
 
 def pad_tree_batch_size(tree, batch_size, axis=0, pad_value=0):
     num_elements = tree_len(tree, axis=axis)
-    padded_num_elements = math.ceil(num_elements / batch_size) * batch_size
+    padded_num_elements = jnp.ceil(num_elements / batch_size) * batch_size
+    padded_num_elements = padded_num_elements.astype(jnp.int32)
     return pad_tree(
         tree, padded_num_elements, axis=axis, pad_value=pad_value)
 
@@ -75,7 +74,8 @@ def clip_tree(tree, target_elements, axis=0):
 
 def clip_tree_batch_size(tree, batch_size, axis=0):
     num_elements = tree_len(tree, axis=axis)
-    clipped_num_elements = math.floor(num_elements / batch_size) * batch_size
+    clipped_num_elements = jnp.floor(num_elements / batch_size) * batch_size
+    clipped_num_elements = clipped_num_elements.astype(jnp.int32)
     return clip_tree(tree, clipped_num_elements, axis=axis)
 
 def batch_tree(tree, batch_size, axis=0):
