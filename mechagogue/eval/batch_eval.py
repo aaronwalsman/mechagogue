@@ -12,6 +12,10 @@ def batch_evaluator(
 ):
     
     #model = ignore_unused_args(model, ('key', 'x', 'state'))
+    model = standardize_interface(
+        model,
+        forward = (('key', 'x', 'state'), lambda x : x),
+    )
     evaluate = ignore_unused_args(evaluate, ('pred', 'y', 'mask'))
     
     def batch_eval(key, x, y, model_state):
@@ -21,7 +25,7 @@ def batch_evaluator(
         def eval_step(mean_total, key_x_y_valid):
             mean, total = mean_total
             key, x, y, valid = key_x_y_valid
-            pred = model(key, x, model_state)
+            pred = model.forward(key, x, model_state)
             
             step_mean = evaluate(pred, y, valid)
             new_evals = jnp.sum(valid)
