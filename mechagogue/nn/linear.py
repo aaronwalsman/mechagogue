@@ -138,6 +138,7 @@ def conv_layer(
         
         def forward(x, state):
             num_dims = len(x.shape)
+            x = x.astype(state.weight.dtype)
             if num_dims == 3:
                 x = x[None,:,:,:]
             

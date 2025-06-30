@@ -1,5 +1,10 @@
+# slurm logs
+*.err
+*.out
+
 __pycache__
 *.pyc
 *.swp
 *.swp
 *.egg-info
+env/

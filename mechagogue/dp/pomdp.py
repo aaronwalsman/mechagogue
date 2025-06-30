@@ -27,7 +27,6 @@ def make_pomdp(
     process (POMDP) from its various components.
     
     [wikipedia](www.wikipedia.com/pomdp)
-    `test <www.google.com>`
     
     The components of a POMDP are:
     
@@ -61,7 +60,7 @@ def make_pomdp(
     init_state = standardize_args(init_state, ('key'))
     transition = standardize_args(transition, ('key', 'state', 'action'))
     observe = standardize_args(observe, ('key', 'state'))
-    terminal = standardize_args(terminal, ('key', 'state'))
+    terminal = standardize_args(terminal, ('state'))
     reward = standardize_args(reward, ('key', 'state', 'action', 'next_state'))
     
     @static_functions
@@ -71,7 +70,7 @@ def make_pomdp(
             initialize_key, observe_key = jrng.split(key, 2)
             
             # generate the first state and observation
-            state = initialize(initialize_key)
+            state = init_state(initialize_key)
             obs = observe(observe_key, state)
             done = terminal(state)
             
@@ -80,7 +79,7 @@ def make_pomdp(
         
         def step(key, state, action):
             # generate new keys
-            transition_key, observe_key, reward_key = jrng.split(key, 4)
+            transition_key, observe_key, reward_key = jrng.split(key, 3)
             
             # generate the next state and observation
             next_state = transition_fn(transition_key, state, action)

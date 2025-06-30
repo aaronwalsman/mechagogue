@@ -1,4 +1,4 @@
-from typing import Sequence
+from typing import Any, Sequence
 
 import jax
 import jax.random as jrng
@@ -27,6 +27,14 @@ class VPGConfig:
     batch_size: int = 256
     
     epsilon: float = 1e-5
+
+@static_dataclass
+class VPGState:
+    env_state : Any = None
+    obs : Any = None
+    done : Any = False
+    model_state : Any = None
+    optim_state : Any = None
 
 def vpg(
     config,
@@ -59,8 +67,7 @@ def vpg(
         
         # reset the environment
         #reset_keys = jrng.split(reset_key, config.parallel_envs)
-        state, obs = reset_env(reset_key)
-        done = jnp.zeros(config.parallel_envs, dtype=jnp.bool)
+        state, obs, done = reset_env(reset_key)
         
         # generate new model state
         model_state = init_model(model_key)
@@ -68,42 +75,42 @@ def vpg(
         # generate new optimizer state
         optim_state = init_optim(optim_key, model_state)
         
-        return state, obs, done, model_state, optim_state
+        return VPGState(state, obs, done, model_state, optim_state)
 
-    def step(key, state, obs, done, model_state, optim_state):
+    def step(key, state):
         # rollout trajectories
         def rollout(state_obs_done, key):
             
             # unpack
-            state, obs, done = state_obs_done
-            episode_returns = state[0]
+            env_state, obs, done = state_obs_done
+            episode_returns = env_state[0]
             
             model_key, action_key, step_key = jrng.split(key, 3)
             
             # sample an action
-            action_sampler, _ = model(model_key, obs, model_state)
+            action_sampler, _ = model(model_key, obs, state.model_state)
             action = action_sampler(action_key)
             
             # take an environment step
             #step_keys = jrng.split(step_key, config.parallel_envs)
-            next_state, next_obs, reward, next_done = step_env(
-                step_key, state, action)
+            next_env_state, next_obs, next_done, reward = step_env(
+                step_key, env_state, action)
             
             return (
-                (next_state, next_obs, next_done),
-                (obs, action, reward, done),
+                (next_env_state, next_obs, next_done),
+                (obs, action, done, reward),
             )
         
         # scan rollout_step to accumulate trajectories
         key, rollout_key = jrng.split(key)
-        (state, obs, done), trajectories = jax.lax.scan(
+        (env_state, obs, done), trajectories = jax.lax.scan(
             rollout,
-            (state, obs, done),
+            (state.env_state, state.obs, state.done),
             jrng.split(rollout_key, config.rollout_steps),
         )
         
         # unpack trajectories
-        traj_obs, traj_action, traj_reward, traj_done = trajectories
+        traj_obs, traj_action, traj_done, traj_reward = trajectories
         
         # compute returns
         def compute_returns(running_returns, reward_done):
@@ -136,37 +143,6 @@ def vpg(
             o, a, r, d = shuffle_tree(shuffle_key, (o,a,r,d))
             o, a, r, d = batch_tree((o,a,r,d), config.batch_size)
             
-            '''
-            num_transitions = config.parallel_envs * config.rollout_steps
-            shuffle_permutation = jrng.permutation(
-                shuffle_key, num_transitions)
-            
-            # apply the shuffle and batch the data
-            num_batches = num_transitions // config.batch_size
-            def shuffle_and_batch(x):
-                # first reshape to (num_transitions, ...)
-                s = x.shape[2:]
-                x = x.reshape(num_transitions, *s)
-                # second apply the permutation
-                x = x[shuffle_permutation]
-                # third reshape into batches
-                x = x.reshape(num_batches, config.batch_size, *s)
-                return x
-            key, batch_key = jrng.split(key)
-            batch_keys = jrng.split(batch_key, num_batches)
-            obs_batches = jax.tree.map(shuffle_and_batch, traj_obs)
-            action_batches = jax.tree.map(shuffle_and_batch, traj_action)
-            return_batches = shuffle_and_batch(traj_returns)
-            done_batches = shuffle_and_batch(traj_done)
-            batches = (
-                batch_keys,
-                obs_batches,
-                action_batches,
-                return_batches,
-                done_batches,
-            )
-            '''
-            
             # train the model on all batches
             def train_batch(model_optim_state, key_obs_action_returns_done):
                 
@@ -181,14 +157,13 @@ def vpg(
                     _, action_logp = model(model_key, obs, model_state)
                     logp = action_logp(action)
                     loss = jnp.mean(-logp * returns * ~done)
-                    jax.debug.print('lp {lp} r {r} d {d} a {a}', lp=logp, r=returns, d=done, a=action)
                     return loss
                 
                 model_key, optim_key = jrng.split(key)
                 loss, grad = jax.value_and_grad(vpg_loss, argnums=1)(
                     model_key, model_state, obs, action, returns, done)
                 
-                jax.debug.print('mp {mp}', mp=model_state)
+                jax.debug.print('grad {g} returns {r}', g=grad, r=returns)
                 
                 # apply the gradients
                 model_state, optim_state = optim(
@@ -213,13 +188,13 @@ def vpg(
         epoch_keys = jrng.split(epoch_key, config.training_epochs)
         (model_state, optim_state), epoch_losses = jax.lax.scan(
             train_epoch,
-            (model_state, optim_state),
+            (state.model_state, state.optim_state),
             epoch_keys,
             config.training_epochs,
         )
         
         losses = epoch_losses.reshape(-1)
         
-        return (state, obs, done, model_state, optim_state), losses
+        return VPGState(env_state, obs, done, model_state, optim_state), losses
     
     return init, step
