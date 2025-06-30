@@ -18,6 +18,7 @@ classifiers = [
 ]
 dependencies = [
   "jax[cuda12]",
+  "makefun",
   "chex",
   "msgpack",
   "numpy",

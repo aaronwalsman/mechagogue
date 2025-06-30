@@ -12,8 +12,8 @@ def population_game(
     family_info: Callable,
 ):
     '''
-    Bundles the component functions of a population game into reset and step
-    functions.  The components are:
+    Bundles the component functions of a partially observable ecological game
+    into reset and step functions.  The components are:
     
     init_state: a function which constructs a new environment state given
         a random key

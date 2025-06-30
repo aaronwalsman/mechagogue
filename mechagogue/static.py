@@ -6,10 +6,10 @@ from dataclasses import dataclass, fields, is_dataclass
 
 import jax
 
-def is_static_dataclass(obj):
-    return getattr(obj, 'STATIC_DATACLASS', False)
+def is_static_data(obj):
+    return getattr(obj, 'STATIC_DATA', False)
 
-def static_dataclass(cls):
+def static_data(cls):
     cls = dataclass(frozen=True)(cls)
 
     def tree_flatten(obj):
@@ -37,7 +37,7 @@ def static_dataclass(cls):
         updates = {}
         for field in fields(obj):
             child = getattr(obj, field.name)
-            if is_static_dataclass(child):
+            if is_static_data(child):
                 child_updates = {}
                 for child_field in fields(child):
                     if hasattr(obj, child_field.name):
@@ -55,23 +55,7 @@ def static_dataclass(cls):
     def override_descendants(obj):
         return obj.override_children(recurse=True)
     
-    def sweep(obj, **kwargs):
-        results = []
-        for value_combination in zip(*kwargs.values()):
-            replace_kwargs = dict(zip(kwargs.keys(), value_combination))
-            results.append(obj.replace(**replace_kwargs))
-        
-        return results
-    
-    def sweep_all_combinations(obj, **kwargs):
-        results = []
-        for value_combination in itertools.product(kwargs.values()):
-            replace_kwargs = dict(zip(kwargs.keys(), value_combination))
-            results.append(obj.replace(**replace_kwargs))
-        
-        return results
-    
-    cls.STATIC_DATACLASS = True
+    cls.STATIC_DATA = True
     cls.tree_flatten = tree_flatten
     cls.tree_unflatten = tree_unflatten
     cls.replace = replace
@@ -80,4 +64,17 @@ def static_dataclass(cls):
     
     jax.tree_util.register_pytree_node_class(cls)
 
+    return cls
+
+def is_static_functions(obj):
+    return getattr(obj, 'STATIC_FUNCTIONS', False)
+
+def static_functions(cls):
+    
+    for name, value in cls.__dict__.items():
+        if callable(value):
+            setattr(cls, name, staticmethod(value))
+    
+    cls.STATIC_FUNCTIONS = True
+    
     return cls

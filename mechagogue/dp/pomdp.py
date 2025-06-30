@@ -1,22 +1,29 @@
-'''
-A partially observable markov decision process
-'''
-
 from typing import Any, Callable, Tuple
 
 import jax.random as jrng
 
-from mechagogue.arg_wrappers import ignore_unused_args
+from mechagogue.standardize import standardize_args
+from mechagogue.static import static_functions, static_data
 
-def pomdp(
+default_init = lambda : None
+default_step = lambda state : state
+
+def standardize_pomdp(pomdp):
+    return standardize_interface(
+        pomdp,
+        init = (('key',), default_init),
+        step = (('key', 'state', 'action'), default_step),
+    )
+
+def make_pomdp(
     init_state : Callable,
     transition : Callable,
     observe : Callable,
-    reward : Callable = lambda : 0.,
     terminal : Callable = lambda : False,
-) -> Tuple[Callable, Callable] :
+    reward : Callable = lambda : 0.,
+):
     '''
-    Builds reset and step functions for a partially observable markov decision
+    Builds a partially observable markov decision
     process (POMDP) from its various components.
     
     [wikipedia](www.wikipedia.com/pomdp)
@@ -32,62 +39,57 @@ def pomdp(
     observe(key, state) -> obs:
         A stochastic function that maps a state to an observation.
     
+    terminal(state) -> bool:
+        A deterministic function mapping state to a boolean indicating
+        that the current episode has terminated.
+    
     reward(key, state, action, next_state) -> float:
         A stochastic function mapping some combination of state, action and
         next state to reward.
     
-    terminal(key, state, action, next_state) -> bool:
-        A stochastic function mapping some combination of state, action and
-        next state to a boolean indicating that the current episode has
-        terminated.
+    The returned environment will have the following static methods:
     
-    Any of the functions above may require only a subset of the listed
-        arguments.  The ignore_unused_args wrapper will filter out those
-        which are not required.
-    
-    The returned functions are:
-    
-    reset(key) -> state, obs:
+    init(key) -> state, obs, done:
         Samples an initial state and observation.
     
-    step(key, state, action) -> state, obs, reward, done:
+    step(key, state, action) -> state, obs, done, reward:
         Samples a next_state, observation, reward and done given a current
         state and action.
     '''
     
-    init_state = ignore_unused_args(
-        init_state, ('key',))
-    transition = ignore_unused_args(
-        transition, ('key', 'state', 'action'))
-    observe = ignore_unused_args(
-        observe, ('key', 'state'))
-    terminal = ignore_unused_args(
-        terminal, ('state',))
-    reward = ignore_unused_args(
-        reward, ('key', 'state', 'action', 'next_state'))
+    init_state = standardize_args(init_state, ('key'))
+    transition = standardize_args(transition, ('key', 'state', 'action'))
+    observe = standardize_args(observe, ('key', 'state'))
+    terminal = standardize_args(terminal, ('state'))
+    reward = standardize_args(reward, ('key', 'state', 'action', 'next_state'))
     
-    def reset(key):
-        # generate new keys
-        state_key, observe_key = jrng.split(key)
+    @static_functions
+    class POMDP:
+        def init(key):
+            # generate new keys
+            initialize_key, observe_key = jrng.split(key, 2)
+            
+            # generate the first state and observation
+            state = init_state(initialize_key)
+            obs = observe(observe_key, state)
+            done = terminal(state)
+            
+            # return
+            return state, obs, done
         
-        # generate the first state and observation
-        state = init_state(state_key)
-        obs = observe(observe_key, state)
-        done = terminal(state)
-        
-        # return
-        return state, obs, done
+        def step(key, state, action):
+            # generate new keys
+            transition_key, observe_key, reward_key = jrng.split(key, 3)
+            
+            # generate the next state and observation
+            next_state = transition_fn(transition_key, state, action)
+            obs = observe_fn(observe_key, next_state)
+            
+            # compute the reward and done
+            rew = reward(reward_key, state, action, next_state)
+            done = terminal(next_state)
+            
+            # return
+            return next_state, obs, done, rew
     
-    def step(key, state, action):
-        # generate new keys
-        transition_key, observe_key, done_key, reward_key = jrng.split(key, 4)
-        
-        next_state = transition(transition_key, state, action)
-        obs = observe(observe_key, next_state)
-        done = terminal(next_state)
-        rew = reward(reward_key, state, action, next_state)
-        
-        # return
-        return next_state, obs, done, rew
-    
-    return reset, step
+    return POMDP

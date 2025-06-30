@@ -15,5 +15,5 @@ def xavier(key, shape, dtype=jnp.float32):
     b = (6/(fan_in + fan_out))**0.5
     return jrng.uniform(key, shape, minval=-b, maxval=b, dtype=dtype)
 
-def zero(key, shape, dtype=jnp.float32):
+def zero(shape, dtype=jnp.float32):
     return jnp.zeros(shape, dtype=dtype)

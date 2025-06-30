@@ -5,22 +5,27 @@ from dataclasses import fields, is_dataclass
 
 from mechagogue.serial import load_example_data
 
-def _annotation_type_parser(annotation):
+def _annotation_type_parser(annotation, name):
     if get_origin(annotation) is tuple:
-        return _tuple_parser(annotation)
+        return _tuple_parser(annotation, name)
+    
     elif (
         annotation is str or
         annotation is int or
-        annotation is float or
-        annotation is bool,
+        annotation is float
     ):
         return annotation
+    
+    elif annotation is bool:
+        return lambda x : bool(int(x))
+    
     else:
-        raise Exception(f'Unsupported commandline type: {annotation}')
+        raise Exception(
+            f'Unsupported commandline type: {annotation} named: {name}')
 
-def _tuple_parser(annotation):
+def _tuple_parser(annotation, name):
     args = get_args(annotation)
-    arg_parsers = [_annotation_type_parser(arg) for arg in args]
+    arg_parsers = [_annotation_type_parser(arg, name) for arg in args]
     def parser(value):
         components = value.split(',')
         assert len(components) == len(args)
@@ -58,7 +63,7 @@ def _add_commandline_args(
             #    parser_type = field.type
             if field.name not in skip_names or not skip_overrides:
                 overrides.append(field.name)
-                type_parser = _annotation_type_parser(field.type)
+                type_parser = _annotation_type_parser(field.type, field.name)
                 parser.add_argument(argname, type=type_parser, default=default)
     
     for default, extended_prefixes  in recursive_arguments:
@@ -88,8 +93,8 @@ def _update_from_commandline(obj, args, prefixes=()):
 
     return cls(**constructor_args)
 
-def commandline_interface(cls):
-    def from_commandline(obj, skip_overrides=False):
+def commandline_interface(cls, override_descendants=False):
+    def from_commandline(obj):
         # make the parser and add the load argument
         parser = argparse.ArgumentParser()
         parser.add_argument('--load', type=str, default=None)
@@ -100,11 +105,13 @@ def commandline_interface(cls):
             obj = load_example_data(obj, load_args.load)
         
         # add the other commandline args and parse them
-        _add_commandline_args(obj, parser, skip_overrides=skip_overrides)
+        _add_commandline_args(obj, parser, skip_overrides=override_descendants)
         commandline_args = parser.parse_args()
         
         # update the (possibly loaded) parameters from the commandline
         obj = _update_from_commandline(obj, commandline_args)
+        if override_descendants:
+            obj = obj.override_descendants()
         return obj
     
     cls.from_commandline = from_commandline

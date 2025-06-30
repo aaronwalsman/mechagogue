@@ -1,15 +1,21 @@
 import jax
 
+from mechagogue.static import static_functions
+
 def print_activations_layer(prefix):
-    def model(x):
-        jax.debug.print(prefix + '{x}', x=x)
-        return x
+    @static_functions
+    class PrintActivationsLayer:
+        def forward(x):
+            jax.debug.print(prefix + '{x}', x=x)
+            return x
     
-    return lambda : None, model
+    return PrintActivationsLayer
 
 def breakpoint_layer():
-    def model(key, x):
-        breakpoint()
-        return x
+    @static_functions
+    class BreakpointLayer:
+        def forward(key, x):
+            breakpoint()
+            return x
     
-    return lambda : None, model
+    return BreakpointLayer

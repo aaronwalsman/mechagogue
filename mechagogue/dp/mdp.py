@@ -11,7 +11,7 @@ def mdp(
     return pomdp(
         init_state,
         transition,
-        lambda key, state : state,
+        lambda state : state,
         reward,
         terminal,
     )
