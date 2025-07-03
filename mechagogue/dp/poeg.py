@@ -2,7 +2,7 @@ from typing import Any, Callable
 
 import jax.random as jrng
 
-from mechagogue.standardize import standardize_args
+from mechagogue.standardize import standardize_args, standardize_interface
 from mechagogue.static import static_functions, static_data
 
 default_init = lambda : None
