@@ -42,6 +42,27 @@ GIF saved: /n/holylabs/LABS/sham_lab/Users/jbejjani/MinAtar/examples/breakout_1M
 Average return over 10 episodes: 11.10 ± 2.39
 ```
 
+#### NUM_FRAMES = 5000000
+
+```
+Cuda available?: True
+Recording episodes to '/n/holylabs/sham_lab/Users/jbejjani/MinAtar/examples/breakout.gif'
+Episode  1/10: return = 23.0
+Episode  2/10: return = 6.0
+Episode  3/10: return = 4.0
+Episode  4/10: return = 0.0
+Episode  5/10: return = 53.0
+Episode  6/10: return = 8.0
+Episode  7/10: return = 8.0
+Episode  8/10: return = 28.0
+Episode  9/10: return = 22.0
+Episode 10/10: return = 15.0
+GIF saved: /n/holylabs/sham_lab/Users/jbejjani/MinAtar/examples/breakout.gif
+------------------------------------------------------------
+Average return over 10 episodes: 16.70 ± 4.71
+```
+
+
 ## MaxAtar
 
 ### old, untuned config:
@@ -182,4 +203,58 @@ GIF saved: breakout_5M_epochs_tuned_config.gif
 Returns: [7. 7. 7. 6. 6. 6. 7. 7. 7. 7.]
 ------------------------------------------------------------
 Average return over 10 episodes: 6.70 ± 0.14
+```
+
+```
+Training finished. Final 10 losses: [[0.00024307246]
+ [0.14837682  ]
+ [0.0004209219 ]
+ [0.00009902957]
+ [0.00067735324]
+ [0.0005600989 ]
+ [0.00019184707]
+ [0.00038482982]
+ [0.0001399755 ]
+ [0.0004497031 ]]
+Recording gameplay to 'breakout_5M_epochs_seed2134_sticky_ramping_1q.gif'...
+GIF saved: breakout_5M_epochs_seed2134_sticky_ramping_1q.gif
+Returns: [7. 7. 7. 7. 7. 7. 7. 7. 7. 7.]
+------------------------------------------------------------
+Average return over 10 episodes: 7.00 ± 0.00
+```
+
+```
+Training finished. Final 10 losses: [[0.00078634993]
+ [0.0054082163 ]
+ [0.0049290466 ]
+ [0.0011484146 ]
+ [0.289373     ]
+ [0.9070021    ]
+ [0.008135218  ]
+ [0.00355149   ]
+ [0.0049625295 ]
+ [0.330093     ]]
+Recording gameplay to 'breakout_5M_epochs_seed3214_sticky_ramping_1q.gif'...
+GIF saved: breakout_5M_epochs_seed3214_sticky_ramping_1q.gif
+Returns: [ 6. 20. 15. 20.  3. 21.  0.  4. 11. 27.]
+------------------------------------------------------------
+Average return over 10 episodes: 12.70 ± 2.76
+```
+
+```
+Training finished. Final 10 losses: [[0.00031531346]
+ [0.0012620578 ]
+ [0.0002560017 ]
+ [0.00060846144]
+ [0.0010000725 ]
+ [0.15092944   ]
+ [0.0010507116 ]
+ [0.0006428918 ]
+ [0.0005816926 ]
+ [0.0001479842 ]]
+Recording gameplay to 'breakout_5M_epochs_seed4321_sticky_ramping_1q.gif'...
+GIF saved: breakout_5M_epochs_seed4321_sticky_ramping_1q.gif
+Returns: [7. 8. 7. 7. 7. 7. 9. 7. 7. 7.]
+------------------------------------------------------------
+Average return over 10 episodes: 7.30 ± 0.20
 ```
