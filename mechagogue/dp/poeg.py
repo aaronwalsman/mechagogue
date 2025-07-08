@@ -21,6 +21,7 @@ def make_poeg(
     observe: Callable,
     active_players: Callable,
     family_info: Callable,
+    **utility_functions,
 ):
     '''
     Bundles the component functions of a partially observable ecological game
@@ -71,5 +72,8 @@ def make_poeg(
             
             # return
             return next_state, obs, players, parents, children
+    
+    for name, utility_function in utility_functions.items():
+        setattr(POEG, name, staticmethod(utility_function))
     
     return POEG
