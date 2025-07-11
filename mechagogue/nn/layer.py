@@ -1,7 +1,6 @@
 from mechagogue.standardize import standardize_interface
 from mechagogue.static import static_functions
 
-
 default_init = lambda : None
 default_forward = lambda x : x
 

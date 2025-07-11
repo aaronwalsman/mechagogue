@@ -4,12 +4,13 @@ import jax.numpy as jnp
 from mechagogue.static import static_data, static_functions
 
 def anonymous_player_list(max_players):
+    
+    @static_data
+    class AnonymousPlayerListState:
+        players : jnp.array
+    
     @static_functions
     class AnonymousPlayerList:
-    
-        @static_data
-        class AnonymousPlayerListState:
-            players : jnp.array
     
         def init(initial_players):
             players = jnp.zeros((max_players,), dtype=jnp.bool)
@@ -45,13 +46,13 @@ def anonymous_player_list(max_players):
 
 def identified_player_list(max_players):
     
+    @static_data
+    class IdentifiedPlayerListState:
+        players : jnp.array
+        next_new_player_id : int
+    
     @static_functions
     class IdentifiedPlayerList:
-        
-        @static_data
-        class IdentifiedPlayerListState:
-            players : jnp.array
-            next_new_player_id : int
         
         def init(initial_players):
             players = jnp.full((max_players,), -1, dtype=jnp.int32)
@@ -94,14 +95,14 @@ def identified_player_list(max_players):
     return IdentifiedPlayerList
 
 def birthday_player_list(max_players):
+
+    @static_data
+    class BirthdayPlayerListState:
+        players : jnp.array
+        current_time : int = 0
     
     @static_functions
     class BirthdayPlayerList:
-
-        @static_data
-        class BirthdayPlayerListState:
-            players : jnp.array
-            current_time : int = 0
         
         def init(initial_players):
             n_hot = jnp.arange(max_players) < initial_players
@@ -150,16 +151,17 @@ def player_family_tree(
     player_list,
     parents_per_child=1,
 ):
+    
+    @static_data
+    class PlayerFamilyTreeState:
+        player_state : jnp.array
+        parents : jnp.array
+    
     @static_functions
     class PlayerFamilyTree:
-
-        @static_data
-        class PlayerFamilyTreeState:
-            player_list : jnp.array
-            parents : jnp.array
         
         def init(initial_players):
-            player_list = player_list.init(initial_players)
+            player_state = player_list.init(initial_players)
             #parents = jax.vmap(init_player_list, out_axes=-1)(
             #    jnp.zeros((parents_per_child,), dtype=jnp.int32)).players
             # this is a for loop because parents_per_child will be small,
@@ -170,33 +172,33 @@ def player_family_tree(
                     for _ in range(parents_per_child)],
                 axis=1,
             )
-            return PlayerFamilyTreeState(player_list, parents)
+            return PlayerFamilyTreeState(player_state, parents)
         
         def step(state, deaths, parent_locations):
             
             # determine how many children to make
             num_children = jnp.sum(
                 (parent_locations[...,0] >= 0) &
-                (parent_locations[...,0] < state.player_list.players.shape[0])
+                (parent_locations[...,0] < state.player_state.players.shape[0])
             )
             
             # remove dead players and add new ones
-            player_list, child_locations, child_ids = player_list.step(
-                state.player_list, deaths, num_children)
+            player_state, child_locations, child_ids = player_list.step(
+                state.player_state, deaths, num_children)
             
             # update the parent information
             new_parents = state.player_list.players[parent_locations]
             parents = state.parents.at[child_locations].set(new_parents)
             
-            next_state = PlayerFamilyTreeState(player_list, parents)
+            next_state = PlayerFamilyTreeState(player_state, parents)
             
             return next_state, child_locations, child_ids
         
         def active(state):
-            return player_list.active(state.player_list)
+            return player_list.active(state.player_state)
         
         def locations_to_ids(state, locations):
-            return player_list.locations_to_ids(state.player_list, locations)
+            return player_list.locations_to_ids(state.player_state, locations)
         
         def locations_to_parents(state, locations):
             return state.parents[locations]

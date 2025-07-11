@@ -21,17 +21,17 @@ from mechagogue.tree import tree_getitem, tree_setitem
 from mechagogue.dp.poeg import standardize_poeg
 from mechagogue.ecology.policy import standardize_ecology_population
 
-@static_dataclass
+@static_data
 class NaturalSelectionParams:
-    max_population : int
+    max_players : int = 512
 
-@static_dataclass
+@static_data
 class NaturalSelectionState:
     env_state : Any
     obs : Any
     population_state : Any
 
-def natural_selection(
+def make_natural_selection(
     params,
     env,
     population,
@@ -52,7 +52,7 @@ def natural_selection(
             # build the population_state
             population_size = jnp.sum(active_players)
             population_state = population.init(
-                model_key, population_size, params.max_population)
+                model_key, population_size, params.max_players)
             
             next_state = NaturalSelectionState(
                 env_state, obs, population_state)
@@ -63,20 +63,14 @@ def natural_selection(
             # generate keys
             action_key, adapt_key, env_key, breed_key = jrng.split(key, 4)
             
-            # compute the traits that will be passed to the environment
-            traits = state.population_state.traits(state.population_state)
+            # compute the traits
+            traits = population.traits(state.population_state)
             
             # compute actions
             actions = population.act(
                 action_key, state.obs, state.population_state)
-            #action_keys = jrng.split(action_key, params.max_population)
-            #actions, adaptations = model(
-            #    action_keys, state.obs, state.population_state)
             
-            # modify the model state according to the adaptations signal
-            #adapt_keys = jrng.split(adapt_key, params.max_population)
-            #population_state = adapt(
-            #    adapt_keys, adaptations, state.population_state)
+            # modify the population state according to the adaptations signal
             population_state = population.adapt(
                 adapt_key, state.obs, state.population_state)
             
@@ -85,16 +79,8 @@ def natural_selection(
                 env_key, state.env_state, actions, traits)
             
             # update the model state
-            max_num_children, = children.shape
-            #parent_state = tree_getitem(population_state, parents)
-            #parent_state = population.get_members(population_state, parents)
-            #child_state = population.breed(breed_key, parent_state)
-            #population_state = tree_setitem(
-            #    population_state, children, child_state)
-            #population_state = population.set_members(
-            #    population_state, children, child_state)
-            state = population.breed(
-                breed_key, state.population_state, parents, children)
+            population_state = population.breed(
+                breed_key, population_state, parents, children)
             
             # build the next state
             next_state = state.replace(
@@ -104,13 +90,6 @@ def natural_selection(
             )
             
             return (
-                next_state,
-                active_players,
-                parents,
-                children,
-                actions,
-                traits,
-                adaptations,
-            )
+                next_state, active_players, parents, children, actions, traits)
     
     return NaturalSelection

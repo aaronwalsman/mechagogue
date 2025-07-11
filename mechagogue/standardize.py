@@ -32,8 +32,8 @@ def standardize_interface(obj, **functions):
             update_function = False
         else:
             assert function is not None, (
-                f'Standardize_interface speficies argnames '
-                f'for {function_name}, but it does not exist.'
+                f'standardize_interface speficies argnames '
+                f'for "{function_name}", but it does not exist.'
             )
             update_function = True
         if argnames is not None:
@@ -46,6 +46,8 @@ def standardize_interface(obj, **functions):
 
 
 def standardize_args(function, argnames):
+    if isinstance(argnames, str):
+        argnames = (argnames,)
     signature = inspect.signature(function)
     existing_argnames = set()
     for name, param in signature.parameters.items():
