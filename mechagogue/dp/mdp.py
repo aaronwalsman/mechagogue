@@ -1,6 +1,6 @@
 from typing import Any, Callable
 
-from mechagogue.dp.pomdp import pomdp
+from mechagogue.dp.pomdp import make_pomdp
 
 def mdp(
     init_state : Callable,
@@ -8,10 +8,10 @@ def mdp(
     reward : Callable,
     terminal : Callable,
 ):
-    return pomdp(
+    return make_pomdp(
         init_state,
         transition,
         lambda state : state,
-        reward,
         terminal,
+        reward,
     )

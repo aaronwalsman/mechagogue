@@ -6,9 +6,10 @@ import jax.numpy as jnp
 import jax.random as jrng
 import jax.nn as jnn
 
-from mechagogue.static import static_functions
+from mechagogue.static import static_functions, static_data
 from mechagogue.standardize import standardize_args
 from mechagogue.nn.layer import standardize_layer
+
 
 def layer_sequence(
     layers,
@@ -29,15 +30,16 @@ def layer_sequence(
             for layer_key, layer in zip(layer_keys, layers):
                 layer_state = layer.init(layer_key)
                 layer_states.append(layer_state)
-            return LayerSequenceState(tuple(layer_states))
+                
+            return LayerSequence.LayerSequenceState(tuple(layer_states))
         
         def forward(key, x, state):
             layer_keys = jrng.split(key, num_layers)
             x0 = x
-            #for key_layer_state in zip(layer_keys, layers, state.layer_states):
+            # for key_layer_state in zip(layer_keys, layers, state.layer_states):
             for k, l, s in zip(layer_keys, layers, state.layer_states):
-                #layer_key, layer, layer_state = key_layer_state
-                #x1 = layer.forward(layer_key, x0, layer_state)
+                # layer_key, layer, layer_state = key_layer_state
+                # x1 = layer.forward(layer_key, x0, layer_state)
                 x1 = l.forward(k, x0, s)
                 x0 = accumulate(x0, x1)
             
@@ -45,7 +47,9 @@ def layer_sequence(
     
     return LayerSequence
 
+
 residual_layer_sequence = partial(layer_sequence, accumulate=jax.lax.add)
+
 
 def repeat_layer(
     layer,
@@ -73,7 +77,9 @@ def repeat_layer(
     
     return RepeatLayer
 
+
 repeat_residual_layer = partial(repeat_layer, accumulate=jax.lax.add)
+
 
 def repeat_shared_layer(
     layer,
@@ -98,6 +104,7 @@ def repeat_shared_layer(
             return x
     
     return RepeatSharedLayer
+
 
 repeat_shared_residual_layer = partial(
     repeat_shared_layer, accumulate=jax.lax.add)

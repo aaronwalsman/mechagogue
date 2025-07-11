@@ -2,11 +2,13 @@ from typing import Any, Callable, Tuple
 
 import jax.random as jrng
 
-from mechagogue.standardize import standardize_args
+from mechagogue.standardize import standardize_args, standardize_interface
 from mechagogue.static import static_functions, static_data
+
 
 default_init = lambda : None
 default_step = lambda state : state
+
 
 def standardize_pomdp(pomdp):
     return standardize_interface(
@@ -14,6 +16,7 @@ def standardize_pomdp(pomdp):
         init = (('key',), default_init),
         step = (('key', 'state', 'action'), default_step),
     )
+
 
 def make_pomdp(
     init_state : Callable,
@@ -27,7 +30,6 @@ def make_pomdp(
     process (POMDP) from its various components.
     
     [wikipedia](www.wikipedia.com/pomdp)
-    `test <www.google.com>`
     
     The components of a POMDP are:
     
@@ -58,10 +60,10 @@ def make_pomdp(
         state and action.
     '''
     
-    init_state = standardize_args(init_state, ('key'))
+    init_state = standardize_args(init_state, ('key',))
     transition = standardize_args(transition, ('key', 'state', 'action'))
     observe = standardize_args(observe, ('key', 'state'))
-    terminal = standardize_args(terminal, ('key', 'state'))
+    terminal = standardize_args(terminal, ('state',))
     reward = standardize_args(reward, ('key', 'state', 'action', 'next_state'))
     
     @static_functions
@@ -71,7 +73,7 @@ def make_pomdp(
             initialize_key, observe_key = jrng.split(key, 2)
             
             # generate the first state and observation
-            state = initialize(initialize_key)
+            state = init_state(initialize_key)
             obs = observe(observe_key, state)
             done = terminal(state)
             
@@ -80,11 +82,11 @@ def make_pomdp(
         
         def step(key, state, action):
             # generate new keys
-            transition_key, observe_key, reward_key = jrng.split(key, 4)
+            transition_key, observe_key, reward_key = jrng.split(key, 3)
             
             # generate the next state and observation
-            next_state = transition_fn(transition_key, state, action)
-            obs = observe_fn(observe_key, next_state)
+            next_state = transition(transition_key, state, action)
+            obs = observe(observe_key, next_state)
             
             # compute the reward and done
             rew = reward(reward_key, state, action, next_state)
