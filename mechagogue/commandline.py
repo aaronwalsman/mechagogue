@@ -96,14 +96,20 @@ def _update_from_commandline(obj, args, prefixes=()):
 def commandline_interface(override_descendants=False):
     def wrapper(cls):
         def from_commandline(obj):
-            # make the parser and add the load argument
+            # make the parser
             parser = argparse.ArgumentParser()
-            parser.add_argument('--load', type=str, default=None)
             
-            # if --load was specified, load the specified file
-            load_args, other_args = parser.parse_known_args()
-            if load_args.load is not None:
-                obj = load_example_data(obj, load_args.load)
+            # TODO: Need to rework the --load flag.  Right now, it kills
+            # the --help because of the initial load that it does.  It seems
+            # reasonable to support something like this, but it will take more
+            # care than this.
+            # # add the load argument
+            # parser.add_argument('--load', type=str, default=None)
+            # 
+            # # if --load was specified, load the specified file
+            # load_args, other_args = parser.parse_known_args()
+            # if load_args.load is not None:
+            #     obj = load_example_data(obj, load_args.load)
             
             # add the other commandline args and parse them
             _add_commandline_args(

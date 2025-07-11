@@ -187,7 +187,7 @@ def player_family_tree(
                 state.player_state, deaths, num_children)
             
             # update the parent information
-            new_parents = state.player_list.players[parent_locations]
+            new_parents = state.player_state.players[parent_locations]
             parents = state.parents.at[child_locations].set(new_parents)
             
             next_state = PlayerFamilyTreeState(player_state, parents)

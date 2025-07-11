@@ -2,7 +2,7 @@ import jax
 import jax.random as jrng
 
 from mechagogue.static import static_data, static_functions
-from mechagogue.standardize import standardize_interface
+from mechagogue.standardize import standardize_interface, standardize_args
 from mechagogue.tree import tree_getitem, tree_setitem
 
 def standardize_ecology_policy(ecology_policy):
@@ -26,10 +26,12 @@ def standardize_ecology_population(ecology_population):
 
 def make_ecology_population(
     policy,
-    breed = lambda : None,
+    breed = None
 ):
     
     policy = standardize_ecology_policy(policy)
+    if breed is not None:
+        breed = standardize_args(breed, ('key', 'parent_state'))
     
     @static_functions
     class EcologyPopulation:
@@ -61,11 +63,13 @@ def make_ecology_population(
             return tree_setitem(state, locations, values)
 
         def breed(key, state, parents, children):
-            population_size = state.shape[0]
-            keys = jrng.split(key, population_size)
-            parent_states = get_members(state, parents)
-            child_states = jax.vmap(breed)(keys, parent_states)
-            state = set_members(state, children, child_states)
+            if breed is not None:
+                population_size = state.shape[0]
+                keys = jrng.split(key, population_size)
+                parent_states = EcologyPopulation.get_members(state, parents)
+                child_states = jax.vmap(breed)(keys, parent_states)
+                state = EcologyPopulation.set_members(
+                    state, children, child_states)
             return state
 
     return EcologyPopulation

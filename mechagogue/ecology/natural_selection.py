@@ -41,6 +41,11 @@ def make_natural_selection(
     
     @static_functions
     class NaturalSelection:
+        
+        # annotate that the init and step functions produce auxilliary data
+        init_has_aux = True
+        step_has_aux = True
+        
         def init(key):
             
             # generate keys
@@ -91,5 +96,11 @@ def make_natural_selection(
             
             return (
                 next_state, active_players, parents, children, actions, traits)
+    
+        def epoch(key, state):
+            step = jax.jit(NaturalSelection.step)
+            def scan_step(key_state, _):
+                key, state = key_state
+                
     
     return NaturalSelection
