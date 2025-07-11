@@ -61,7 +61,7 @@ def countup_dqn(key, n=4):
     
     init_model_params, model = embedding_layer(n+1, n+1)
     
-    init_optimizer_params, optimize = sgd(learning_rate=1e-2)
+    optimizer = sgd(learning_rate=1e-2)
     
     def random_action(key):
         return jrng.randint(key, minval=0, maxval=(n+1), shape=())
@@ -72,8 +72,7 @@ def countup_dqn(key, n=4):
         step_env,
         init_model_params,
         model,
-        init_optimizer_params,
-        optimize,
+        optimizer,
         random_action,
     )
     

@@ -2,8 +2,8 @@ import jax
 import jax.random as jrng
 import jax.numpy as jnp
 
-from mechagogue.static_dataclass import static_dataclass
-from mechagogue.dp.pomdp import pomdp
+from mechagogue.static import static_data
+from mechagogue.dp.pomdp import make_pomdp
 
 TOTAL_CHANNELS = 4
 PADDLE_CHANNEL = 0
@@ -24,7 +24,7 @@ TRANSITION_WALL  = jnp.array([1, 0, 3, 2], dtype=jnp.int32)  # reflect on vertic
 TRANSITION_CEIL  = jnp.array([3, 2, 1, 0], dtype=jnp.int32)  # reflect on horizontal wall
 TRANSITION_BRICK = TRANSITION_CEIL                           # identical to ceiling bounce
 
-@static_dataclass
+@static_data
 class BreakoutState:
     ball_y : int
     ball_x : int
@@ -194,20 +194,22 @@ def render(obs):
 # -------------------------------------------------------------------
 def make_env(*, ramping: bool = True, perfect: bool = False):
     """
-    Returns (reset, step) functions whose `transition` uses the
-    supplied `ramping` flag.
+    Returns POMDP object with static functions init, step.
+    The POMDP's `transition` uses the supplied `ramping` flag.
 
     Example:
-        reset_env, step_env = make_env(ramping=False)  # fixed speed
+        env = make_env(ramping=False)  # fixed speed
+        env.init(key)
+        env.step(key, state, action)
     """
     # bind the flag via a closure / partial
     def _transition(key, state, action):
         return transition(key, state, action, ramping=ramping, perfect=perfect)
 
-    return pomdp(
+    return make_pomdp(
         init_state,
         _transition,     # ← uses the chosen ramping behaviour
         observe,
-        reward,
         terminal,
+        reward,
     )

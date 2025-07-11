@@ -12,13 +12,17 @@ from mechagogue.nn.sequence import layer_sequence
 def q_network_mlp(in_channels: int, num_actions: int):
     """
         flatten → MLP
+        
+        e.g. MinAtar breakout:
         400 * 256 + 256 * 6 = 102400 + 1536 = 103936 params
         treats every pixel independently
+        
+        returns a LayerSequence object with init and forward static methods
     """
     hidden_layers = 1
     hidden_channels = 256
     
-    init_net, net = layer_sequence(
+    mlp = layer_sequence(
         (
             (lambda: None, lambda x: x.reshape(-1, in_channels)),
             mlp(
@@ -31,7 +35,7 @@ def q_network_mlp(in_channels: int, num_actions: int):
         )
     )
     
-    return init_net, net
+    return mlp
 
 
 def q_network_cnn(in_channels: int, num_actions: int):
@@ -40,8 +44,11 @@ def q_network_cnn(in_channels: int, num_actions: int):
         with ReLU after each hidden layer. Dimensions and padding convention
         are the same as the MinAtar reference network.
         
+        e.g. MinAtar breakout:
         3*3*4*16 + 8*8*16*128 + 128*6 = 576 + 131072 + 768 = 132416 params
         shares weights spatially, providing inductive bias for grid inputs
+        
+        returns a LayerSequence object with init and forward static methods
     """
     board_dim = 10  # input is 10x10
     conv_filters = 16
@@ -53,7 +60,7 @@ def q_network_cnn(in_channels: int, num_actions: int):
     fc_in = conv_out_h * conv_out_w * conv_filters  # 8×8×16 = 1024
     fc_out = 128
 
-    init_net, net = layer_sequence(
+    cnn = layer_sequence(
         (
             # 3×3 Conv2D, stride 1, VALID padding
             conv_layer(
@@ -72,4 +79,4 @@ def q_network_cnn(in_channels: int, num_actions: int):
         )
     )
 
-    return init_net, net
+    return cnn

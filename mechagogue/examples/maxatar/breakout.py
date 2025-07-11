@@ -124,6 +124,7 @@ def obs_to_rgb(obs: np.ndarray, palette: np.ndarray, scale: int = 40) -> np.ndar
     rgb_small = palette[idx]  # 10×10×3
     return np.repeat(np.repeat(rgb_small, scale, axis=0), scale, axis=1)
 
+
 PALETTE = build_palette(breakout.TOTAL_CHANNELS)
 
 
@@ -131,8 +132,7 @@ def generate_trajectories(
     key: jax.random.PRNGKey,
     model_state,
     model,
-    reset_env,
-    step_env,
+    env,
     *,
     episodes: int,
     max_steps: int = 1_000,
@@ -140,7 +140,7 @@ def generate_trajectories(
     """Greedily rollout `episodes` full episodes with at most `max_steps` frames each using the `model` policy."""
     def run_episode(key, _):
         key, reset_key = jrng.split(key)
-        state, obs, done = reset_env(reset_key)
+        state, obs, done = env.init(reset_key)
         
         def step_fn(carry, _):
             key, state, obs, done, G = carry
@@ -148,11 +148,11 @@ def generate_trajectories(
             
             # Only take action if not done
             key, mk, sk = jrng.split(key, 3)
-            q = model(mk, obs, model_state).min(axis=0)
+            q = model.forward(mk, obs, model_state).min(axis=0)
             action = jnp.argmax(q)
             
-            # Always call step_env (for JAX tracing), but conditionally use results
-            next_state, next_obs, next_done, reward = step_env(sk, state, action)
+            # Always call env.step (for JAX tracing), but conditionally use results
+            next_state, next_obs, next_done, reward = env.step(sk, state, action)
             
             # Update everything conditionally based on current done status
             state = jax.tree.map(lambda old, new: jnp.where(done, old, new), state, next_state)
@@ -205,10 +205,10 @@ def breakout_dqn(
     gif_path: str | None,
     delay: float,
 ):
-    reset_env, step_env = breakout.make_env(ramping=RAMPING)
+    env = breakout.make_env(ramping=RAMPING)
 
     if STICKY_P > 0.0:
-        reset_env, step_env = sticky_action_wrapper(reset_env, step_env, prob=STICKY_P)
+        env = sticky_action_wrapper(env, prob=STICKY_P)
 
     cfg = DQNConfig(
         batch_size=BATCH_SIZE,
@@ -231,11 +231,11 @@ def breakout_dqn(
     # Q‑network
     num_actions = 6
     
-    # init_net, net = q_network_mlp(10*10*4, num_actions)
-    init_net, net = q_network_cnn(breakout.TOTAL_CHANNELS, num_actions)
+    # model = q_network_mlp(10*10*4, num_actions)
+    model = q_network_cnn(breakout.TOTAL_CHANNELS, num_actions)
 
-    # init_opt, optimize = sgd(learning_rate=LEARNING_RATE, momentum=MOMENTUM)
-    init_opt, optimize = rmsprop(
+    # optimizer = sgd(learning_rate=LEARNING_RATE, momentum=MOMENTUM)
+    optimizer = rmsprop(
         learning_rate=cfg.step_size,
         alpha=cfg.rms_alpha,
         eps=cfg.rms_eps,
@@ -247,7 +247,7 @@ def breakout_dqn(
         return jrng.randint(key, shape=(), minval=0, maxval=6)
 
     init_dqn, step_dqn = dqn(
-        cfg, reset_env, step_env, init_net, net, init_opt, optimize, random_action
+        cfg, env, model, optimizer, random_action
     )
 
     # Training
@@ -267,9 +267,8 @@ def breakout_dqn(
     obs_frames, returns = generate_trajectories(
         eval_key,
         model_state,
-        net,
-        reset_env,
-        step_env,
+        model,
+        env,
         episodes=episodes,
     )
 

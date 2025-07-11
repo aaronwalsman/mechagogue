@@ -9,9 +9,11 @@ import imageio.v3 as iio
 import mechagogue.envs.maxatar.breakout as breakout
 from mechagogue.wrappers import auto_reset_wrapper, sticky_action_wrapper
 
-# Get the reset and step functions from make_env
-reset_env, step_env = breakout.make_env(ramping=True)
-breakout_reset, breakout_step = auto_reset_wrapper(reset_env, step_env)  # sticky_action_wrapper(reset_env, step_env, prob=0.1)
+
+# Initialize the environment
+env = breakout.make_env(ramping=True)
+env = auto_reset_wrapper(env)  # sticky_action_wrapper(env, prob=0.1)
+
 
 def rand_breakout(key):
     """
@@ -21,13 +23,13 @@ def rand_breakout(key):
     n = 100  # number of frames to generate
     
     key, init_key = jrng.split(key)
-    state, obs, done = breakout_reset(init_key)
+    state, obs, done = env.init(init_key)
     
     def scan_step(key_state_obs_done, _):
         key, state, obs, done = key_state_obs_done
         key, action_key, step_key = jrng.split(key, 3)
         action = jrng.randint(key, shape=(), minval=0, maxval=6)
-        next_state, next_obs, next_done, rew = breakout_step(
+        next_state, next_obs, next_done, rew = env.step(
             step_key, state, action)
         
         return (key, next_state, next_obs, next_done), (
@@ -71,4 +73,4 @@ for i, obs_i in enumerate(obs):
 
 plt.close(fig)
 
-iio.imwrite("out/breakout_random.gif", frames, duration=pause)
+iio.imwrite("out/breakout_random_STATIC_FUNC_CHANGES.gif", frames, duration=pause)

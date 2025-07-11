@@ -4,8 +4,9 @@ import jax
 import jax.random as jrng
 import jax.numpy as jnp
 
-from mechagogue.static_dataclass import static_dataclass
-from mechagogue.arg_wrappers import ignore_unused_args, split_random_keys
+from mechagogue.static import static_data
+from mechagogue.standardize import standardize_args
+from mechagogue.standardize import split_random_keys
 from mechagogue.wrappers import (
     episode_return_wrapper,
     auto_reset_wrapper,
@@ -13,7 +14,8 @@ from mechagogue.wrappers import (
 )
 from mechagogue.tree import tree_getitem, tree_setitem, ravel_tree
 
-@static_dataclass
+
+@static_data
 class DQNConfig:
     # data collection
     batch_size: int = 32
@@ -22,7 +24,7 @@ class DQNConfig:
     replay_start_size: int = 5000
     rollout_steps: int = 1
     # TODO:
-    #initial_random_data: int = 1000*32,
+    # initial_random_data: int = 1000*32,
     
     # learning hyperparameters
     discount: float = 0.95
@@ -43,7 +45,7 @@ class DQNConfig:
     batches_per_step: int = 1  # frequency of gradient steps
     
 
-@static_dataclass
+@static_data
 class DQNState:
     env_state : Any = None
     obs : Any = None
@@ -69,12 +71,9 @@ def huber_loss(error: jnp.ndarray, delta: float = 1.0) -> jnp.ndarray:
 
 def dqn(
     config,
-    reset_env,
-    step_env,
-    init_model,
+    env,
     model,
-    init_optim,
-    optim,
+    optimizer,
     random_action,
 ):
     
@@ -84,27 +83,26 @@ def dqn(
     ) == 0
     
     # auto-reset and parallelize the environment
-    reset_env, step_env = auto_reset_wrapper(reset_env, step_env)
-    reset_env, step_env = parallel_env_wrapper(
-        reset_env, step_env, config.parallel_envs)
+    env = auto_reset_wrapper(env)
+    reset_env, step_env = parallel_env_wrapper(env, config.parallel_envs)
     
     # parallelize the model over the number of q functions
-    init_model = ignore_unused_args(init_model, ('key',))
+    init_model = standardize_args(model.init, ('key',))
     init_model = jax.vmap(init_model)
     init_model = split_random_keys(
         init_model, config.num_q_models)
-    single_model = ignore_unused_args(model, ('key', 'x', 'state'))
-    model = jax.vmap(single_model, in_axes=(0,None,0))
+    single_model = standardize_args(model.forward, ('key', 'x', 'state'))
+    model = jax.vmap(single_model, in_axes=(0, None, 0))
     model = split_random_keys(model, config.num_q_models)
     
     # wrap the optimizer
-    init_optim = ignore_unused_args(
-        init_optim, ('key', 'model_state'))
-    optim = ignore_unused_args(
-        optim, ('key', 'grad', 'model_state', 'optim_state'))
+    init_optim = standardize_args(
+        optimizer.init, ('key', 'model_state'))
+    optim = standardize_args(
+        optimizer.optimize, ('key', 'grad', 'model_state', 'optim_state'))
     
     # parallelize the action sampler
-    random_action = ignore_unused_args(random_action, ('key',))
+    random_action = standardize_args(random_action, ('key',))
     random_action = jax.vmap(random_action)
     random_action = split_random_keys(random_action, config.parallel_envs)
     
