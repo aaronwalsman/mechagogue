@@ -46,15 +46,6 @@ def standardize_interface(obj, **functions):
 
 
 def standardize_args(function, argnames):
-    # Validate argnames
-    if not isinstance(argnames, (list, tuple)):
-        raise ValueError(f"argnames must be a list or tuple, got {type(argnames)}")
-    
-    # Filter out empty strings and validate
-    argnames = [name for name in argnames if name and isinstance(name, str)]
-    if not argnames:
-        raise ValueError("argnames cannot be empty")
-    
     signature = inspect.signature(function)
     existing_argnames = set()
     for name, param in signature.parameters.items():

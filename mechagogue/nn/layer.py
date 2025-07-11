@@ -15,9 +15,12 @@ def standardize_layer(layer):
 
 
 def make_layer(init=default_init, forward=default_forward):
+    init_fn = init
+    forward_fn = forward
+    
     @static_functions
     class Layer:
-        init = init
-        forward = forward
+        init = init_fn
+        forward = forward_fn
     
     return Layer

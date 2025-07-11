@@ -7,6 +7,7 @@ from mechagogue.nn.mlp import mlp
 from mechagogue.nn.linear import linear_layer, conv_layer
 from mechagogue.nn.nonlinear import relu_layer
 from mechagogue.nn.sequence import layer_sequence
+from mechagogue.nn.layer import make_layer
 
 
 def q_network_mlp(in_channels: int, num_actions: int):
@@ -22,9 +23,10 @@ def q_network_mlp(in_channels: int, num_actions: int):
     hidden_layers = 1
     hidden_channels = 256
     
+    flatten = make_layer(lambda: None, lambda x: x.reshape(-1, in_channels))
     mlp = layer_sequence(
         (
-            (lambda: None, lambda x: x.reshape(-1, in_channels)),
+            flatten,
             mlp(
                 hidden_layers=hidden_layers,
                 in_channels=in_channels,
@@ -60,6 +62,7 @@ def q_network_cnn(in_channels: int, num_actions: int):
     fc_in = conv_out_h * conv_out_w * conv_filters  # 8×8×16 = 1024
     fc_out = 128
 
+    flatten = make_layer(lambda: None, lambda x: x.reshape(-1, fc_in)) # flatten NHWC -> (…, 1024)
     cnn = layer_sequence(
         (
             # 3×3 Conv2D, stride 1, VALID padding
@@ -72,7 +75,7 @@ def q_network_cnn(in_channels: int, num_actions: int):
                 use_bias=True,
             ),
             relu_layer(),
-            (lambda: None, lambda x: x.reshape(-1, fc_in)),  # flatten NHWC -> (…, 1024)
+            flatten,
             linear_layer(fc_in, fc_out, use_bias=True),  # fully-connected 128
             relu_layer(),
             linear_layer(fc_out, num_actions, use_bias=True),  # output layer
