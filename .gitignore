@@ -1,3 +1,5 @@
+*.gif
+
 # slurm logs
 *.err
 *.out
