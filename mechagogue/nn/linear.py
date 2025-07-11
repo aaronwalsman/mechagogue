@@ -6,8 +6,9 @@ import jax.numpy as jnp
 import jax.random as jrng
 
 from mechagogue.standardize import standardize_args
-from mechagogue.static import static_functions
+from mechagogue.static import static_functions, static_data
 from mechagogue.nn.initializers import kaiming, zero
+
 
 @static_data
 class LinearState:
@@ -101,7 +102,7 @@ def embedding_layer(
     class EmbeddingLayer:
         def init(key):
             weight_shape = (num_embeddings, channels)
-            weight = init_weight(key, shape=weight_shape, dtype=dtype)
+            weight = init_weights(key, shape=weight_shape, dtype=dtype)
             return LinearState(weight)
         
         def forward(x, state):
@@ -117,7 +118,7 @@ def conv_layer(
     stride=(1,1),
     padding='SAME',
     use_bias=False,
-    init_weight=kaiming,
+    init_weights=kaiming,
     init_bias=zero,
     dtype=jnp.float32,
 ):
@@ -128,7 +129,7 @@ def conv_layer(
     class ConvLayer:
         def init(key):
             weight_shape = kernel_size + (in_channels, out_channels)
-            weight = init_weight(key, shape=weight_shape, dtype=dtype)
+            weight = init_weights(key, shape=weight_shape, dtype=dtype)
             if use_bias:
                 bias_shape = (out_channels,)
                 bias = init_bias(key, shape=bias_shape, dtype=dtype)
@@ -138,6 +139,7 @@ def conv_layer(
         
         def forward(x, state):
             num_dims = len(x.shape)
+            x = x.astype(state.weight.dtype)
             if num_dims == 3:
                 x = x[None,:,:,:]
             

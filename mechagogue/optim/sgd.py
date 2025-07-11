@@ -3,6 +3,7 @@ import jax.numpy as jnp
 
 from mechagogue.static import static_functions
 
+
 def sgd(
     learning_rate=3e-4,
     momentum=0,

@@ -5,7 +5,26 @@ from makefun import with_signature
 
 import jax.random as jrng
 
+
 def standardize_interface(obj, **functions):
+    # Handle tuples by creating a new object with the tuple's functions
+    if isinstance(obj, tuple):
+        # Simple object to hold the functions
+        class StandardizedObject:
+            pass
+        new_obj = StandardizedObject()
+        
+        # If it's a tuple of (init, forward) functions, extract them
+        if len(obj) == 2:
+            init_func, forward_func = obj
+            new_obj.init = init_func
+            new_obj.forward = forward_func
+        else:
+            # For other tuple types, just use the default functions
+            pass
+        
+        obj = new_obj
+    
     obj = copy.deepcopy(obj)
     for function_name, (argnames, function) in functions.items():
         if hasattr(obj, function_name):
@@ -24,6 +43,7 @@ def standardize_interface(obj, **functions):
             setattr(obj, function_name, staticmethod(function))
     
     return obj
+
 
 def standardize_args(function, argnames):
     if isinstance(argnames, str):
@@ -66,6 +86,15 @@ def standardize_args(function, argnames):
     
     return wrapped_function
 
+
+def split_random_keys(function, n):
+    def wrapped_function(key, *args, **kwargs):
+        keys = jrng.split(key, n)
+        return function(keys, *args, **kwargs)
+    
+    return wrapped_function
+
+
 '''
 def ignore_unused_args(function, argnames):
     signature = inspect.signature(function)
@@ -89,13 +118,6 @@ def ignore_unused_args(function, argnames):
             a:arg for a, arg in zip(argnames, args) if a in existing_argnames}
         wrapped_args.update(kwargs)
         return function(**wrapped_args)
-    
-    return wrapped_function
-
-def split_random_keys(function, n):
-    def wrapped_function(key, *args, **kwargs):
-        keys = jrng.split(key, n)
-        return function(keys, *args, **kwargs)
     
     return wrapped_function
 '''

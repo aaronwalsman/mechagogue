@@ -11,7 +11,7 @@ import mechagogue.sup.tasks.classify as classify
 from mechagogue.nn.linear import linear_layer, grouped_linear_layer
 from mechagogue.nn.sequence import layer_sequence
 from mechagogue.nn.mlp import mlp
-from mechagogue.nn.nonlinear import ReluLayer
+from mechagogue.nn.nonlinear import relu_layer
 from mechagogue.nn.permute import permute_layer
 from mechagogue.nn.debug import breakpoint_layer
 from mechagogue.optim.adamw import adamw
