@@ -26,6 +26,7 @@ def standardize_ecology_population(ecology_population):
 
 def make_ecology_population(
     policy,
+    population_size,
     breed = None
 ):
     
@@ -43,13 +44,11 @@ def make_ecology_population(
             return state
 
         def act(key, obs, state):
-            population_size = state.shape[0]
             keys = jrng.split(key, population_size)
             actions = jax.vmap(policy.act)(keys, obs, state)
             return actions
 
         def adapt(key, obs, state):
-            population_size = state.shape[0]
             keys = jrng.split(key, population_size)
             state = jax.vmap(policy.adapt)(keys, obs, state)
             return state
@@ -64,7 +63,6 @@ def make_ecology_population(
 
         def breed(key, state, parents, children):
             if breed is not None:
-                population_size = state.shape[0]
                 keys = jrng.split(key, population_size)
                 parent_states = EcologyPopulation.get_members(state, parents)
                 child_states = jax.vmap(breed)(keys, parent_states)
