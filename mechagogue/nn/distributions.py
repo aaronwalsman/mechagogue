@@ -5,7 +5,7 @@ import jax.numpy as jnp
 import jax.random as jrng
 import jax.nn as jnn
 
-from mechagogue.static import static_dataclass
+from mechagogue.static import static_functions
 
 def categorical(logits, temp=1., choices=None):
     @static_functions
@@ -21,6 +21,8 @@ def categorical(logits, temp=1., choices=None):
         def logp(y):
             logp = jnn.log_softmax(logits, axis=-1)
             return jnp.take_along_axis(logp, y[..., None], axis=-1)[..., 0]
+        
+    return Categorical
 
 '''
 def categorical(logits, temp=1., choices=None):
