@@ -31,8 +31,9 @@ def make_ecology_population(
 ):
     
     policy = standardize_ecology_policy(policy)
+    _breed = None
     if breed is not None:
-        breed = standardize_args(breed, ('key', 'parent_state'))
+        _breed = standardize_args(breed, ('key', 'parent_state'))
     
     @static_functions
     class EcologyPopulation:
@@ -40,7 +41,6 @@ def make_ecology_population(
         def init(key, population_size, max_population_size):
             keys = jrng.split(key, max_population_size)
             state = jax.vmap(policy.init)(keys)
-
             return state
 
         def act(key, obs, state):
@@ -62,10 +62,10 @@ def make_ecology_population(
             return tree_setitem(state, locations, values)
 
         def breed(key, state, parents, children):
-            if breed is not None:
+            if _breed is not None:
                 keys = jrng.split(key, max_population_size)
                 parent_states = EcologyPopulation.get_members(state, parents)
-                child_states = jax.vmap(breed)(keys, parent_states)
+                child_states = jax.vmap(_breed)(keys, parent_states)
                 state = EcologyPopulation.set_members(
                     state, children, child_states)
             return state
