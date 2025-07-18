@@ -24,7 +24,7 @@ def q_network_mlp(in_channels: int, num_actions: int):
     hidden_channels = 256
     
     flatten = make_layer(lambda: None, lambda x: x.reshape(-1, in_channels))
-    mlp = layer_sequence(
+    network = layer_sequence(
         (
             flatten,
             mlp(
@@ -37,7 +37,7 @@ def q_network_mlp(in_channels: int, num_actions: int):
         )
     )
     
-    return mlp
+    return network
 
 
 def q_network_cnn(in_channels: int, num_actions: int):

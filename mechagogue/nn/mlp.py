@@ -13,7 +13,7 @@ def mlp(
     hidden_channels,
     out_channels=None,
     use_bias=False,
-    p_dropout=0,
+    p_dropout=0.0,
     init_weights=kaiming,
     init_bias=zero,
     dtype=jnp.float32
