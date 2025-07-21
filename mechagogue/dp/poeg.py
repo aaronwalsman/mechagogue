@@ -1,5 +1,7 @@
 from typing import Any, Callable
 
+import jax
+import jax.numpy as jnp
 import jax.random as jrng
 
 from mechagogue.standardize import standardize_args, standardize_interface
@@ -72,6 +74,10 @@ def make_poeg(
             
             # return
             return next_state, obs, players, parents, children
+        
+        def extinct(state):
+            #n = active_players(state).sum()
+            return not jnp.any(active_players(state))
     
     for name, member in members.items():
         if callable(member):
