@@ -1,19 +1,17 @@
 from typing import Any, Callable
 
-from mechagogue.dp.pomdp import pomdp
+from mechagogue.dp.pomdp import make_pomdp
 
 def mdp(
-    initialize_fn : Callable,
-    transition_fn : Callable,
-    reward_fn : Callable,
-    done_fn : Callable,
-    config : Any = None,
+    init_state : Callable,
+    transition : Callable,
+    reward : Callable,
+    terminal : Callable,
 ):
-    return pomdp(
-        initialize_fn,
-        transition_fn,
-        lambda key, config, state : state,
-        reward_fn,
-        done_fn,
-        config=config,
+    return make_pomdp(
+        init_state,
+        transition,
+        lambda state : state,
+        terminal,
+        reward,
     )

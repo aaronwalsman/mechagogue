@@ -9,6 +9,8 @@ from mechagogue.static_dataclass import static_dataclass
 from mechagogue.arg_wrappers import ignore_unused_args
 from mechagogue.serial import save_leaf_data, load_example_data
 
+raise Exception('Deprecated')
+
 @static_dataclass
 class EpochRunnerParams:
     epochs : int

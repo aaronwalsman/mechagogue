@@ -9,7 +9,7 @@ import jax.random as jrng
 import wandb
 
 from mechagogue.commandline import commandline_interface
-from mechagogue.static_dataclass import static_dataclass
+from mechagogue.static import static_data
 from mechagogue.sup.ga import GAParams, ga
 import mechagogue.sup.tasks.classify as classify
 from mechagogue.nn.linear import linear_layer, grouped_linear_layer
@@ -24,7 +24,7 @@ from mechagogue.tree import tree_getitem
 
 # specify params and read them from the commandline
 @commandline_interface
-@static_dataclass
+@static_data
 class MaxnistParams:
     
     # run name
