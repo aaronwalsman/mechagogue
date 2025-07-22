@@ -41,6 +41,17 @@ def standardize_system(system):
     
     return next_system
 
+def timed_system(system):
+    def step(key, state):
+        t0 = time.time()
+        state = system.step(key, state)
+        state = jax.block_until_ready(state)
+        elapsed = time.time() - t0
+        print('elapsed: {elapsed}s')
+        return state
+    
+    return make_system(system.init, step)
+
 def jit_system(system):
     return make_system(
         init=jax.jit(system.init),
