@@ -75,6 +75,9 @@ def make_poeg(
             # return
             return next_state, obs, players, parents, children
         
+        def population(state):
+            return jnp.sum(active_players(state))
+        
         def extinct(state):
             #n = active_players(state).sum()
             return not jnp.any(active_players(state))
