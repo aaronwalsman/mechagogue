@@ -3,7 +3,8 @@ import jax.numpy as jnp
 import jax.random as jrng
 
 from mechagogue.tree import pad_tree_batch_size, batch_tree
-from mechagogue.arg_wrappers import ignore_unused_args
+from mechagogue.standardize import standardize_args
+from mechagogue.nn.layer import standardize_layer
 
 def batch_evaluator(
     model,
@@ -11,12 +12,8 @@ def batch_evaluator(
     batch_size,
 ):
     
-    #model = ignore_unused_args(model, ('key', 'x', 'state'))
-    model = standardize_interface(
-        model,
-        forward = (('key', 'x', 'state'), lambda x : x),
-    )
-    evaluate = ignore_unused_args(evaluate, ('pred', 'y', 'mask'))
+    model = standardize_layer(model)
+    evaluate = standardize_args(evaluate, ('pred', 'y', 'mask'))
     
     def batch_eval(key, x, y, model_state):
         (x, y), valid = pad_tree_batch_size((x,y), batch_size)
