@@ -7,6 +7,7 @@ name = "mechagogue"
 version = "0.0.0"
 authors = [
   {name="Aaron Walsman", email="aaronwalsman@gmail.com"},
+  {name="Joseph Bejjani", email="jbejjani2022@gmail.com"}
 ]
 description = "Instructive RL Training Code"
 readme = "README.md"
