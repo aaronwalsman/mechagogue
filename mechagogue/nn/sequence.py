@@ -10,7 +10,6 @@ from mechagogue.static import static_functions, static_data
 from mechagogue.standardize import standardize_args
 from mechagogue.nn.layer import standardize_layer
 
-
 def layer_sequence(
     layers,
     accumulate=lambda x0, x1 : x1,
