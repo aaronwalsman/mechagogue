@@ -71,13 +71,8 @@ def make_epoch_system(
             
             return EpochState(system_state, 1)
         
-        def step(key, state):
-            epoch = state.epoch
-            if verbose:
-                print(f'epoch: {epoch}')
-                t_start = time.time()
-            
-            key, step_key = jrng.split(key)
+        @jax.jit
+        def multi_step_report(key, state):
             
             def step_report(key_state, _):
                 key, state = key_state
@@ -93,12 +88,25 @@ def make_epoch_system(
                     report = None
                 return (key, state), report
             
-            (key, system_state), reports = jax.lax.scan(
+            (key, state), reports = jax.lax.scan(
                 step_report,
-                (key, state.system_state),
+                (key, state),
                 None,
                 length=steps_per_epoch,
             )
+            
+            return state, reports
+        
+        def step(key, state):
+            epoch = state.epoch
+            if verbose:
+                print(f'epoch: {epoch}')
+                t_start = time.time()
+            
+            key, step_key = jrng.split(key)
+            
+            system_state, reports = EpochSystem.multi_step_report(
+                step_key, state.system_state)
             
             log(system_state, reports)
             state = EpochState(system_state, state.epoch+1)
