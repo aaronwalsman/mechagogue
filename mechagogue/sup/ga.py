@@ -50,7 +50,7 @@ def make_ga(
     #model = standardize_args(model, ('key', 'x', 'state'))
     breed = standardize_args(breed, ('key', 'state'))
     breed = jax.vmap(breed)
-    loss_function = standardize_args(loss_function, ('pred', 'y', 'mask'))
+    loss_function = standardize_args(loss_function, ('pred', 'y', 'mask', 'model_state'))
     
     evaluator = batch_evaluator(model, test_function, params.batch_size)
     population_evaluator = jax.vmap(evaluator, in_axes=(0, None, None, 0))
@@ -88,8 +88,8 @@ def make_ga(
                         model_keys = jrng.split(
                             model_key, params.population_size)
                         pred = parallel_model(model_keys, x, model_state)
-                    loss = jax.vmap(loss_function, in_axes=(0,None,None))(
-                        pred, y, mask)
+                    loss = jax.vmap(loss_function, in_axes=(0,None,None,0))(
+                        pred, y, mask, model_state)
                     fitness = fitness - loss
                     
                     return fitness, None
