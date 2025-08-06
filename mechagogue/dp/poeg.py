@@ -82,6 +82,12 @@ def make_poeg(
             #n = active_players(state).sum()
             return not jnp.any(active_players(state))
     
+    setattr(POEG, 'init_state', init_state)
+    setattr(POEG, 'transition', transition)
+    setattr(POEG, 'observe', observe)
+    setattr(POEG, 'active_players', active_players)
+    setattr(POEG, 'family_info', family_info)
+    
     for name, member in members.items():
         if callable(member):
             member = staticmethod(member)
