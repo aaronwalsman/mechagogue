@@ -23,6 +23,7 @@ def make_epoch_system(
     output_directory = '.',
     save_states = False,
     save_reports = False,
+    compress_saved_data = False,
     verbose = True,
 ):
     
@@ -120,14 +121,16 @@ def make_epoch_system(
                 state = jax.block_until_ready(state)
                 if verbose:
                     print(f'  saving state to: {state_path}')
-                save_leaf_data((key, state), state_path)
+                save_leaf_data(
+                    (key, state), state_path, compress=compress_saved_data)
             
             if save_reports:
                 reports_path = EpochSystem.reports_path(epoch)
                 reports = jax.block_until_ready(reports)
                 if verbose:
                     print(f'  saving reports to: {reports_path}')
-                save_leaf_data(reports, reports_path)
+                save_leaf_data(
+                    reports, reports_path, compress=compress_saved_data)
             
             if verbose:
                 state = jax.block_until_ready(state)
