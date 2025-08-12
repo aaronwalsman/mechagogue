@@ -26,6 +26,7 @@ dependencies = [
   "matplotlib",
   "seaborn",
   "imageio",
+  "zstandard",
 ]
 
 [project.urls]
