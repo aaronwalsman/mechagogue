@@ -10,6 +10,7 @@ This algorithm does not have an optimization objective, but instead relies
 on the environment dynamics to update the population over time.
 '''
 
+import math
 from typing import Any
 
 import jax
@@ -20,10 +21,12 @@ from mechagogue.static import static_data, static_functions
 from mechagogue.tree import tree_getitem, tree_setitem
 from mechagogue.dp.poeg import standardize_poeg
 from mechagogue.ecology.policy import standardize_ecology_population
+from mechagogue.serial import save_leaf_data, load_example_data
 
 @static_data
 class NaturalSelectionParams:
     max_players : int = 512
+    population_blocks : int = 8
 
 @static_data
 class NaturalSelectionState:
@@ -96,11 +99,55 @@ def make_natural_selection(
             
             return (
                 next_state, active_players, parents, children, actions, traits)
-    
-        def epoch(key, state):
-            step = jax.jit(NaturalSelection.step)
-            def scan_step(key_state, _):
-                key, state = key_state
-                
+        
+        def save_state(state, path, compress=False):
+            env_obs_state = (state.env_state, state.obs)
+            env_obs_path = path.replace('.data', '.env.data')
+            save_leaf_data(env_obs_state, env_obs_path, compress=compress)
+            
+            population_state = (state.population_state)
+            population_block_size = int(math.ceil(
+                params.max_players / params.population_blocks))
+            for i in range(params.population_blocks):
+                population_block = tree_getitem(
+                    population_state,
+                    slice(
+                        i*population_block_size,
+                        (i+1)*population_block_size
+                    )
+                )
+                block_path = path.replace('.data', f'.population.{i}.data')
+                save_leaf_data(
+                    population_block, block_path, compress=compress)
+        
+        def load_state(path):
+            #example_env_state, example_obs, _ = env.init(jrng.key(0))
+            env_obs_path = path.replace('.data', '.env.data')
+            example_state, _ = NaturalSelection.init(jrng.key(0))
+            env_state, obs = load_example_data(
+                (example_state.env_state, example_state.obs), env_obs_path)
+            
+            population_blocks = []
+            for i in range(params.population_blocks):
+                block_path = path.replace('.data', f'.population.{i}.data')
+                population_block = load_example_data(
+                    example_state.population_state,
+                    block_path,
+                )
+                population_blocks.append(population_block)
+            
+            if params.population_blocks > 1:
+                def concatenate(*x):
+                    return jnp.concatenate(x)
+                population_state = jax.tree.map(concatenate, *population_blocks)
+            else:
+                population_state = population_blocks[0]
+            
+            return NaturalSelectionState(env_state, obs, population_state)
+        
+        #def epoch(key, state):
+        #    step = jax.jit(NaturalSelection.step)
+        #    def scan_step(key_state, _):
+        #        key, state = key_state
     
     return NaturalSelection
