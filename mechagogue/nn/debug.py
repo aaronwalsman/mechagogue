@@ -11,6 +11,14 @@ def print_activations_layer(prefix):
     
     return PrintActivationsLayer
 
+def print_shape_layer(prefix):
+    @static_functions
+    class PrintShapeLayer:
+        def forward(x):
+            jax.debug.print(prefix + '{x}', x=x.shape)
+    
+    return PrintShapeLayer
+
 def breakpoint_layer():
     @static_functions
     class BreakpointLayer:

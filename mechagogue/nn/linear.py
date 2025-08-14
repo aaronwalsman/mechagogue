@@ -12,12 +12,13 @@ from mechagogue.nn.initializers import kaiming, zero
 
 @static_data
 class LinearState:
-    weight : jnp.ndarray
+    weight : Optional[jnp.ndarray] = None
     bias : Optional[jnp.ndarray] = None
 
 def linear_layer(
     in_channels,
     out_channels,
+    use_weight=True,
     use_bias=False,
     init_weights=kaiming,
     init_bias=zero,
@@ -31,8 +32,12 @@ def linear_layer(
         
         def init(key):
             weight_key, bias_key = jrng.split(key)
-            weight_shape = (in_channels, out_channels)
-            weight = init_weights(weight_key, shape=weight_shape, dtype=dtype)
+            if use_weight:
+                weight_shape = (in_channels, out_channels)
+                weight = init_weights(
+                    weight_key, shape=weight_shape, dtype=dtype)
+            else:
+                weight = None
             if use_bias:
                 bias_shape = (out_channels,)
                 bias = init_bias(bias_key, shape=bias_shape, dtype=dtype)
@@ -41,7 +46,8 @@ def linear_layer(
             return LinearState(weight, bias)
         
         def forward(x, state):
-            x = x @ state.weight
+            if state.weight is not None:
+                x = x @ state.weight
             if state.bias is not None:
                 x = x + state.bias
             return x
