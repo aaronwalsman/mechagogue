@@ -1,5 +1,9 @@
+from functools import partial
+
 import numpy as np
 from functools import partial
+
+import zstandard
 
 import zstandard
 
@@ -72,12 +76,7 @@ def save_leaf_data(item, destination, compress=False):
     destination.write(data)
 
 def packable_to_np(data):
-    #dtype_name, shape, compressed, buffer = data
-    if len(data) == 4:
-        dtype_name, shape, compressed, buffer = data
-    else:
-        dtype_name, shape, buffer = data
-        compressed = False
+    dtype_name, shape, compressed, buffer = data
     if compressed:
         buffer = zstandard.decompress(buffer)
     return np.frombuffer(
