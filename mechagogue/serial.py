@@ -1,4 +1,7 @@
 import numpy as np
+from functools import partial
+
+import zstandard
 
 import jax
 import jax.numpy as jnp
@@ -24,26 +27,30 @@ def dtype_from_name(name: str):
     else:
         return np.dtype(name)
 
-def np_to_packable(leaf):
-    return (leaf.dtype.name, leaf.shape, leaf.tobytes())
+def np_to_packable(leaf, compress=False):
+    b = leaf.tobytes()
+    if compress:
+        b = zstandard.compress(b)
+    return (leaf.dtype.name, leaf.shape, compress, b)
 
-def jnp_to_packable(leaf):
+def jnp_to_packable(leaf, compress):
     is_prng_key = False
     if jnp.issubdtype(leaf.dtype, jax.dtypes.prng_key):
         is_prng_key = True
         leaf = jrng.key_data(leaf)
     
-    return (is_prng_key,) + np_to_packable(np.array(leaf))
+    return (is_prng_key,) + np_to_packable(np.array(leaf), compress=compress)
 
-def leaf_to_msgpack(leaf):
+def leaf_to_msgpack(leaf, compress):
     if isinstance(leaf, jnp.ndarray):
-        data = msgpack.packb(jnp_to_packable(leaf))
+        data = msgpack.packb(jnp_to_packable(leaf, compress=compress))
         return msgpack.ExtType(JNP_ARRAY_EXT_ID, data)
     elif isinstance(leaf, np.ndarray):
-        data = msgpack.packb(np_to_packable(leaf))
+        data = msgpack.packb(np_to_packable(leaf, compress=compress))
         return msgpack.ExtType(NP_ARRAY_EXT_ID, data)
     elif isinstance(leaf, np.generic):
-        data = msgpack.packb(np_to_packable(np.asarray(leaf)))
+        data = msgpack.packb(
+            np_to_packable(np.asarray(leaf, compress=compress)))
         return msgpack.ExtType(NP_GENERIC_EXT_ID, data)
     elif isinstance(leaf, complex):
         data = msgpack.packb((leaf.real, leaf.imag))
@@ -51,20 +58,28 @@ def leaf_to_msgpack(leaf):
     
     return leaf
 
-def pack_leaf_data(item):
+def pack_leaf_data(item, compress=False):
     leaves, _ = jax.tree.flatten(item)
-    return msgpack.packb(leaves, default=leaf_to_msgpack, strict_types=True)
+    leaf_handler = partial(leaf_to_msgpack, compress=compress)
+    return msgpack.packb(leaves, default=leaf_handler, strict_types=True)
 
-def save_leaf_data(item, destination):
+def save_leaf_data(item, destination, compress=False):
     if isinstance(destination, str):
         with open(destination, 'wb') as f:
-            return save_leaf_data(item, f)
+            return save_leaf_data(item, f, compress=compress)
     
-    data = pack_leaf_data(item)
+    data = pack_leaf_data(item, compress=compress)
     destination.write(data)
 
 def packable_to_np(data):
-    dtype_name, shape, buffer = data
+    #dtype_name, shape, compressed, buffer = data
+    if len(data) == 4:
+        dtype_name, shape, compressed, buffer = data
+    else:
+        dtype_name, shape, buffer = data
+        compressed = False
+    if compressed:
+        buffer = zstandard.decompress(buffer)
     return np.frombuffer(
         buffer,
         dtype=dtype_from_name(dtype_name),
