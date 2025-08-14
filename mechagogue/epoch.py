@@ -29,31 +29,7 @@ def make_epoch_system(
     
     log = standardize_args(log, ('state', 'reports'))
     
-    system = standardize_system(system)
-    
-    '''
-    if make_report is not None:
-        def step_report(key, state):
-            key, step_key = jrng.split(key)
-            state = system.step(step_key, state)
-            if system.step_has_aux:
-                state, *aux = state
-            else:
-                aux = ()
-            report = make_report(state, *aux)
-            return state, report
-        
-        system = make_system(
-            init=system.init,
-            step=step_report,
-            init_has_aux = system.init_has_aux,
-            step_has_aux = True,
-        )
-    system = iterated_system_scan(
-        system, steps_per_epoch, collect_aux=(make_report is not None))
-    '''
-    
-    system = jit_system(system)
+    j_system = jit_system(standardize_system(system))
     
     @static_functions
     class EpochSystem:
@@ -61,14 +37,20 @@ def make_epoch_system(
         def state_path(epoch):
             return f'{output_directory}/state_{epoch:08}.data'
         
+        def epoch_key_path(epoch):
+            return f'{output_directory}/epoch_key_{epoch:08}.data'
+        
+        def system_state_path(epoch):
+            return f'{output_directory}/system_state_{epoch:08}.data'
+        
         def reports_path(epoch):
             return f'{output_directory}/reports_{epoch:08}.data'
         
         def init(key):
-            if system.init_has_aux:
-                system_state, *aux = system.init(key)
+            if j_system.init_has_aux:
+                system_state, *aux = j_system.init(key)
             else:
-                system_state = system.init(key)
+                system_state = j_system.init(key)
             
             return EpochState(system_state, 1)
         
@@ -78,8 +60,8 @@ def make_epoch_system(
             def step_report(key_state, _):
                 key, state = key_state
                 key, step_key = jrng.split(key)
-                state = system.step(step_key, state)
-                if system.step_has_aux:
+                state = j_system.step(step_key, state)
+                if j_system.step_has_aux:
                     state, *aux = state
                 else:
                     aux = ()
@@ -99,31 +81,61 @@ def make_epoch_system(
             return state, reports
         
         def step(key, state):
+            # get the current epoch
             epoch = state.epoch
             if verbose:
                 print(f'epoch: {epoch}')
                 t_start = time.time()
             
+            # split keys
             key, step_key = jrng.split(key)
             
+            # run multiple steps and gather reports
             system_state, reports = EpochSystem.multi_step_report(
                 step_key, state.system_state)
             
+            # run the log function
             log(system_state, reports)
+            
+            # update the epoch for the next time step
             state = EpochState(system_state, state.epoch+1)
             
+            # gather timing information
             if verbose:
                 state = jax.block_until_ready(state)
                 t_primary = time.time()
             
+            # save states
             if save_states:
-                state_path = EpochSystem.state_path(epoch)
                 state = jax.block_until_ready(state)
+                
+                system_state_path = EpochSystem.system_state_path(epoch)
+                epoch_key_path = EpochSystem.epoch_key_path(epoch)
+                
                 if verbose:
-                    print(f'  saving state to: {state_path}')
+                    print(f'  saving system state to: {system_state_path}')
+                if hasattr(system, 'save_state'):
+                    system.save_state(
+                        state.system_state,
+                        system_state_path,
+                        compress=compress_saved_data,
+                    )
+                else:
+                    save_leaf_data(
+                        state.system_state,
+                        system_state_path,
+                        compress=compress_saved_data,
+                    )
+                
+                if verbose:
+                    print(f'  saving epoch and key to: {epoch_key_path}')
                 save_leaf_data(
-                    (key, state), state_path, compress=compress_saved_data)
+                    (state.epoch, key),
+                    epoch_key_path,
+                    compress=compress_saved_data,
+                )
             
+            # save reports
             if save_reports:
                 reports_path = EpochSystem.reports_path(epoch)
                 reports = jax.block_until_ready(reports)
@@ -132,6 +144,7 @@ def make_epoch_system(
                 save_leaf_data(
                     reports, reports_path, compress=compress_saved_data)
             
+            # print
             if verbose:
                 state = jax.block_until_ready(state)
                 t_end = time.time()
@@ -148,8 +161,22 @@ def make_epoch_system(
             return state
         
         def load_epoch(epoch):
-            state_path = EpochSystem.state_path(epoch)
-            example = jrng.key(0), EpochSystem.init(jrng.key(0))
-            return load_example_data(example, state_path)
+            #state_path = EpochSystem.state_path(epoch)
+            #example = jrng.key(0), EpochSystem.init(jrng.key(0))
+            #return load_example_data(example, state_path)
+            epoch_key_example = (0, jrng.key(0))
+            epoch_key_path = EpochSystem.epoch_key_path(epoch)
+            next_epoch, key = load_example_data(
+                epoch_key_example, epoch_key_path)
+            
+            system_state_path = EpochSystem.system_state_path(epoch)
+            if hasattr(system, 'load_state'):
+                system_state = system.load_state(system_state_path)
+            else:
+                epoch_system_example = EpochSystem.init(jrng.key(0))
+                system_state = load_exmaple_data(
+                    epoch_system_example.system_state, system_state_path)
+            
+            return key, EpochState(system_state, next_epoch)
     
     return EpochSystem
