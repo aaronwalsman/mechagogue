@@ -16,7 +16,7 @@ def normal_mutate(
                 num_parents = leaf.shape[0]
                 leaf = jnp.sum(leaf, axis=0) / num_parents
             delta = jrng.normal(key, shape=leaf.shape, dtype=leaf.dtype)
-            if auto_scale and leaf.ndim > 1:  # ignores 0-d scalars, e.g. mutable_channels_state and layer_switch_states for 'resizable' MLPs
+            if auto_scale:
                 fan_in = leaf.shape[-2]
                 alpha = (1-(learning_rate**2)*fan_in/2)**0.5
                 leaf = leaf * alpha
