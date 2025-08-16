@@ -6,13 +6,15 @@ from mechagogue.tree import tree_key
 
 def normal_mutate(
     learning_rate=3e-4,
-    auto_scale=False
+    auto_scale=False,
+    average_over_parents=False,
 ):
     
     def mutate(key, state):
         def mutate_leaf(key, leaf):
-            num_parents = leaf.shape[0]
-            leaf = jnp.sum(leaf, axis=0) / num_parents
+            if average_over_parents:
+                num_parents = leaf.shape[0]
+                leaf = jnp.sum(leaf, axis=0) / num_parents
             delta = jrng.normal(key, shape=leaf.shape, dtype=leaf.dtype)
             if auto_scale and leaf.ndim > 1:  # ignores 0-d scalars, e.g. mutable_channels_state and layer_switch_states for 'resizable' MLPs
                 fan_in = leaf.shape[-2]
