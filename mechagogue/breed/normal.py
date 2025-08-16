@@ -7,7 +7,7 @@ from mechagogue.tree import tree_key
 def normal_mutate(
     learning_rate=3e-4,
     auto_scale=False,
-    average_over_parents=False,
+    average_over_parents=True,
 ):
     
     def mutate(key, state):
