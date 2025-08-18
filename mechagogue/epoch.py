@@ -3,12 +3,12 @@ from typing import Any
 
 import jax
 import jax.random as jrng
+import jax.numpy as jnp
 
 from mechagogue.standardize import standardize_args
 from mechagogue.static import static_data, static_functions 
 from mechagogue.serial import save_leaf_data, load_example_data
-from mechagogue.ds.system import (
-    standardize_system, make_system, jit_system, iterated_system_scan)
+from mechagogue.ds.system import standardize_system, make_system
 
 @static_data
 class EpochState:
@@ -29,7 +29,7 @@ def make_epoch_system(
     
     log = standardize_args(log, ('state', 'reports'))
     
-    j_system = jit_system(standardize_system(system))
+    #compiled_system = compile_system(standardize_system(system))
     
     @static_functions
     class EpochSystem:
@@ -46,22 +46,32 @@ def make_epoch_system(
         def reports_path(epoch):
             return f'{output_directory}/reports_{epoch:08}.data'
         
-        def init(key):
-            if j_system.init_has_aux:
-                system_state, *aux = j_system.init(key)
+        def _init(key):
+            if system.init_has_aux:
+                system_state, *aux = system.init(key)
             else:
-                system_state = j_system.init(key)
+                system_state = system.init(key)
             
             return EpochState(system_state, 1)
         
-        @jax.jit
-        def multi_step_report(key, state):
+        if verbose:
+            print('compiling init')
+            t_pre_compile = time.time()
+        example_key = jrng.key(0)
+        abstract_key = jax.ShapeDtypeStruct(
+            example_key.shape, example_key.dtype)
+        init = jax.jit(_init).lower(abstract_key).compile()
+        if verbose:
+            t_post_compile = time.time()
+            print(f'  took {t_post_compile-t_pre_compile:.04}s')
+        
+        def _multi_step_report(key, state):
             
             def step_report(key_state, _):
                 key, state = key_state
                 key, step_key = jrng.split(key)
-                state = j_system.step(step_key, state)
-                if j_system.step_has_aux:
+                state = system.step(step_key, state)
+                if system.step_has_aux:
                     state, *aux = state
                 else:
                     aux = ()
@@ -78,7 +88,22 @@ def make_epoch_system(
                 length=steps_per_epoch,
             )
             
+            if hasattr(system, 'correct'):
+                state = system.correct(state, steps_per_epoch)
+            
             return state, reports
+        
+        if verbose:
+            print('compiling epoch step')
+            t_pre_compile = time.time()
+        abstract_state = jax.eval_shape(system.init, abstract_key)
+        if system.init_has_aux:
+            abstract_state = abstract_state[0]
+        multi_step_report = jax.jit(_multi_step_report).lower(
+            abstract_key, abstract_state).compile()
+        if verbose:
+            t_post_compile = time.time()
+            print(f'  took {t_post_compile-t_pre_compile:.04}s')
         
         def step(key, state):
             # get the current epoch
