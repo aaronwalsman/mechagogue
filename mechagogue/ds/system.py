@@ -2,7 +2,7 @@ import jax
 import jax.random as jrng
 
 from mechagogue.static import static_functions
-from mechagogue.standardize import standardize_interface
+from mechagogue.standardize import standardize_interface, standardize_args
 
 default_init = lambda : None
 default_step = lambda state : state
@@ -10,12 +10,14 @@ default_step = lambda state : state
 def make_system(
     init=default_init,
     step=default_step,
+    correct=None,
     init_has_aux=False,
     step_has_aux=False,
 ):
     
     system_init = init
     system_step = step
+    system_correct = correct
     system_init_has_aux = init_has_aux
     system_step_has_aux = step_has_aux
     
@@ -26,6 +28,8 @@ def make_system(
         
         init = system_init
         step = system_step
+        if system_correct is not None:
+            correct = system_correct
     
     return System
 
@@ -35,6 +39,10 @@ def standardize_system(system):
         init = (('key',), default_init),
         step = (('key', 'state'), default_step),
     )
+    
+    if hasattr(system, 'correct'):
+        next_system.correct = staticmethod(
+            standardize_args(system.correct, ('state', 'steps')))
     
     next_system.init_has_aux = getattr(system, 'init_has_aux', False)
     next_system.step_has_aux = getattr(system, 'step_has_aux', False)
