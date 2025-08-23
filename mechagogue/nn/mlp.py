@@ -42,4 +42,24 @@ def mlp(
         layers.append(linear_layer(
             in_c, out_channels, use_bias=False, dtype=dtype))
     
-    return layer_sequence(layers, return_activations=return_activations)
+    model = layer_sequence(layers, return_activations=return_activations)
+    
+    def state_statistics(name, state):
+        datapoint = {}
+        for i in range(hidden_layers):
+            if p_dropout:
+                step=3
+            else:
+                step=2
+            datapoint.update(layers[i*step].state_statistics(
+                f'{name}_{i}', state.layer_states[i*step]))
+        
+        if out_channels is not None:
+            datapoint.update(layers[-1].state_statistics(
+                f'{name}_out', state.layer_states[-1]))
+        
+        return datapoint
+    
+    model.state_statistics = staticmethod(state_statistics)
+    
+    return model

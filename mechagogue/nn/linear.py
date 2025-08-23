@@ -51,6 +51,16 @@ def linear_layer(
             if state.bias is not None:
                 x = x + state.bias
             return x
+        
+        def state_statistics(name, state):
+            datapoint = {}
+            if state.weight is not None:
+                datapoint[f'{name}_weight_magnitude_mean'] = jnp.abs(
+                    state.weight).mean()
+            if state.bias is not None:
+                datapoint[f'{name}_bias_magnitude_mean'] = jnp.abs(
+                    state.bias).mean()
+            return datapoint
     
     return LinearLayer
 
@@ -163,5 +173,15 @@ def conv_layer(
             if state.bias is not None:
                 x = x + state.bias
             return x
+        
+        def state_statistics(name, state):
+            datapoint = {}
+            if state.weight is not None:
+                datapoint[f'{name}_weight_magnitude_mean'] = jnp.abs(
+                    state.weight).mean()
+            if state.bias is not None:
+                datapoint[f'{name}_bias_magnitude_mean'] = jnp.abs(
+                    state.bias).mean()
+            return datapoint
     
     return ConvLayer
