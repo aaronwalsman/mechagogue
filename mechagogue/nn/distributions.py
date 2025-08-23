@@ -22,6 +22,12 @@ def categorical(logits, temp=1., choices=None):
             logp = jnn.log_softmax(logits, axis=-1)
             return jnp.take_along_axis(logp, y[..., None], axis=-1)[..., 0]
         
+        def entropy():
+            p = jnn.softmax(logits, axis=-1)
+            logp = jnp.log(p)
+            h = (-p*logp).sum(axis=-1)
+            return h
+        
     return Categorical
 
 '''
@@ -63,15 +69,42 @@ def categorical(logits, temp=1., choices=None):
     return Categorical
 '''
 
-def sampler_layer(distribution):
+def sampler_layer(
+    distribution,
+    include_sample=True,
+    include_logp=False,
+    include_entropy=False,
+):
     @static_functions
     class SamplerLayer:
         def forward(key, x):
             d = distribution(x)
-            value = d.sample(key)
-            return value
+            result = []
+            if include_sample:
+                sample = d.sample(key)
+                result.append(sample)
+            if include_logp:
+                logp = d.logp(sample)
+                result.append(logp)
+            if include_entropy:
+                entropy = d.entropy()
+                result.append(entropy)
+            if len(result) == 1:
+                return result[0]
+            else:
+                return tuple(result)
     
     return SamplerLayer
 
-def categorical_sampler_layer(**kwargs):
-    return sampler_layer(partial(categorical, **kwargs))
+def categorical_sampler_layer(
+    include_sample=True,
+    include_logp=False,
+    include_entropy=False,
+    **kwargs
+):
+    return sampler_layer(
+        partial(categorical, **kwargs),
+        include_sample=include_sample,
+        include_logp=include_logp,
+        include_entropy=include_entropy,
+    )
