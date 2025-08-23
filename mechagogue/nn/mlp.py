@@ -16,6 +16,7 @@ def mlp(
     p_dropout=0.0,
     init_weights=kaiming,
     init_bias=zero,
+    return_activations=False,
     dtype=jnp.float32
 ):
     
@@ -41,4 +42,4 @@ def mlp(
         layers.append(linear_layer(
             in_c, out_channels, use_bias=False, dtype=dtype))
     
-    return layer_sequence(layers)
+    return layer_sequence(layers, return_activations=return_activations)
