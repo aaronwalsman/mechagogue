@@ -27,7 +27,7 @@ def make_epoch_system(
     verbose = True,
 ):
     
-    log = standardize_args(log, ('key', 'state', 'reports'))
+    log = standardize_args(log, ('key', 'epoch', 'state', 'reports'))
     
     #compiled_system = compile_system(standardize_system(system))
     
@@ -121,7 +121,7 @@ def make_epoch_system(
             
             # run the log function
             key, log_key = jrng.split(key)
-            log(log_key, system_state, reports)
+            log(log_key, epoch, system_state, reports)
             
             # update the epoch for the next time step
             state = EpochState(system_state, state.epoch+1)
