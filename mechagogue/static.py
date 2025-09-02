@@ -2,6 +2,7 @@ from functools import partial
 import itertools
 import argparse
 from typing import Any
+import dataclasses
 from dataclasses import dataclass, fields, is_dataclass
 
 import jax
@@ -26,12 +27,15 @@ def static_data(cls):
         return cls(**dict(zip(field_names, children)))
     
     def replace(obj, **kwargs):
+        '''
         field_dict = {
             field.name : getattr(obj, field.name)
             for field in fields(obj)
         }
         field_dict.update(kwargs)
         return cls(**field_dict)
+        '''
+        return dataclasses.replace(obj, **kwargs)
     
     def override_children(obj, recurse=False):
         updates = {}
