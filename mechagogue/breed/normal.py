@@ -6,6 +6,7 @@ from mechagogue.tree import tree_key
 
 def normal_mutate(
     learning_rate=3e-4,
+    update_density=None,
     auto_scale=False,
     average_over_parents=False,
 ):
@@ -15,12 +16,33 @@ def normal_mutate(
             if average_over_parents:
                 num_parents = leaf.shape[0]
                 leaf = jnp.sum(leaf, axis=0) / num_parents
-            delta = jrng.normal(key, shape=leaf.shape, dtype=leaf.dtype)
+            delta_key, mask_key = jrng.split(key)
+            delta = jrng.normal(delta_key, shape=leaf.shape, dtype=leaf.dtype)
+            if update_density is not None:
+                delta_mask = jrng.bernoulli(
+                    mask_key, update_density, delta.shape)
+                delta = delta * delta_mask
             if auto_scale and leaf.ndim > 1:
                 fan_in = leaf.shape[-2]
                 alpha = (1-(learning_rate**2)*fan_in/2)**0.5
                 leaf = leaf * alpha
-            return leaf + learning_rate * delta
+            #num = jnp.sum(jnp.ones_like(delta)).astype(jnp.int32)
+            #num_zero = jnp.sum(delta * learning_rate == 0.)
+            #jax.debug.print('num zero {nz}/{n}', nz=num_zero, n=num)
+            #jax.debug.print('num zero {nz}/{n}', nz=num_zero, n=num)
+            #return leaf + learning_rate * delta
+            new_leaf = leaf + learning_rate * delta
+            
+            # XXX
+            #new_leaf = leaf.astype(jnp.bfloat16) + learning_rate * delta.astype(jnp.bfloat16)
+            #new_leaf = new_leaf.astype(leaf.dtype)
+            #new_leaf = new_leaf.astype(jnp.bfloat16)
+            #new_leaf = new_leaf.astype(jnp.float32)
+            # XXX
+            
+            #unchanged = jnp.sum(new_leaf == leaf)
+            #jax.debug.print('num zero {nz}/{n}', nz=unchanged, n=num)
+            return new_leaf
         
         keys = tree_key(key, jax.tree.structure(state))
         state = jax.tree.map(mutate_leaf, keys, state)
