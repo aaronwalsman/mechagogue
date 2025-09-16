@@ -57,9 +57,11 @@ def linear_layer(
             if state.weight is not None:
                 datapoint[f'{name}_weight_magnitude_mean'] = jnp.abs(
                     state.weight).mean()
+                datapoint[f'{name}_weight_mean'] = state.weight.mean()
             if state.bias is not None:
                 datapoint[f'{name}_bias_magnitude_mean'] = jnp.abs(
                     state.bias).mean()
+                datapoint[f'{name}_bias_mean'] = state.bias.mean()
             return datapoint
     
     return LinearLayer
