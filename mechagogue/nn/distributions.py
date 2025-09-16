@@ -23,8 +23,8 @@ def categorical(logits, temp=1., choices=None):
             return jnp.take_along_axis(logp, y[..., None], axis=-1)[..., 0]
         
         def entropy():
-            p = jnn.softmax(logits, axis=-1)
-            logp = jnp.log(p)
+            logp = jnn.log_softmax(logits, axis=-1)
+            p = jnp.exp(logp)
             h = (-p*logp).sum(axis=-1)
             return h
         
