@@ -13,9 +13,12 @@ def mlp(
     hidden_channels,
     out_channels=None,
     use_bias=False,
+    output_bias=False,
     p_dropout=0.0,
     init_weights=kaiming,
     init_bias=zero,
+    init_output_weights=kaiming,
+    init_output_bias=zero,
     return_activations=False,
     dtype=jnp.float32
 ):
@@ -40,7 +43,13 @@ def mlp(
     
     if out_channels is not None:
         layers.append(linear_layer(
-            in_c, out_channels, use_bias=False, dtype=dtype))
+            in_c,
+            out_channels,
+            use_bias=output_bias,
+            init_weights=init_output_weights,
+            init_bias=init_output_bias,
+            dtype=dtype,
+        ))
     
     model = layer_sequence(layers, return_activations=return_activations)
     

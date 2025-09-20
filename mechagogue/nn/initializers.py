@@ -17,3 +17,6 @@ def xavier(key, shape, dtype=jnp.float32):
 
 def zero(shape, dtype=jnp.float32):
     return jnp.zeros(shape, dtype=dtype)
+
+def eye(shape, dtype=jnp.float32):
+    return jnp.eye(shape[0], dtype=dtype)
