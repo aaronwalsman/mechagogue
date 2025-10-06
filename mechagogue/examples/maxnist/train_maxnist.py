@@ -1,3 +1,10 @@
+'''
+Train neural network on MaxNIST using supervised learning with backprop.
+
+Standard gradient-based training on multi-digit MaxNIST classification
+using AdamW optimizer.
+'''
+
 import argparse
 
 import jax
@@ -102,67 +109,6 @@ def main(params):
     # build the supervised learning algorithm
     trainer = supervised_backprop(
         model, optimizer, classify.loss, classify.accuracy)
-    
-    '''
-    @static_functions
-    class MaxnistSystem:
-        def init(key):
-            trainer_key, dataset_key = jrng.split(key)
-            trainer_state = trainer.init(trainer_key)
-        
-        def forward(key, state):
-            state, losses = trainer.train(key, train_x, train_y, state)
-            #accuracy = trainer.test(
-            #    key, test_x, test_y, trainer_state)
-            return state, losses
-        
-        def make_report(state, losses):
-            accuracy = trainer.test(
-                key, test_x, test_y, MASK, state)
-            return losses, accuracy
-        
-        def log(key, state, reports, epoch):
-            losses, accuracy = reports
-            print(f'Epoch {epoch}')
-            if params.visualize_examples:
-                key, model_key = jrng.split(key)
-                logits = model(
-                    model_key,
-                    test_x[:params.visualize_examples],
-                    state.model_state,
-                )
-                pred = jnp.argmax(logits, axis=-1)
-            print(f'  accuracy: {accuracy}')
-    
-    system = MaxnistSystem()
-    '''
-    #simulate(key, params.simulate_params, system)
-    
-    '''
-    # iterate through each epoch
-    for epoch in range(params.epochs):
-        print(f'Epoch: {epoch}')
-        
-        # train
-        key, train_key = jrng.split(key)
-        trainer_state, losses = trainer.train(
-            train_key, train_x, train_y, trainer_state)
-        
-        # visualize
-        if params.visualize_examples:
-            key, model_key = jrng.split(key)
-            logits = model(
-                model_key,
-                test_x[:params.visualize_examples],
-                trainer_state.model_state,
-            )
-            pred = jnp.argmax(logits, axis=-1)
-        
-        # test
-        key, test_key = jrng.split(key)
-        accuracy = trainer.test(test_key, test_x, test_y, trainer.model_state)
-        print(f'  accuracy: {accuracy}')
-    '''
 
 if __name__ == '__main__':
     params = MaxnistParams().from_commandline()

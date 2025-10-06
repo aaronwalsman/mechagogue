@@ -1,3 +1,10 @@
+'''
+Train neural network on MaxNIST using genetic algorithm.
+
+Experiments with different architectures (MLP, grouped linear, mutable channels)
+for multi-digit classification with evolutionary optimization.
+'''
+
 import argparse
 
 import numpy as np
@@ -102,7 +109,7 @@ elif model_class == 'grouped_linear':
         A single linear would be  
         (in, out)
         This is
-        (groups, in//groups, hidden//groups) +                                          (groups, hidden//groups, out//groups)
+        (groups, in//groups, hidden//groups) + (groups, hidden//groups, out//groups)
         Comparing
         in*out <?> groups*(in//groups)*(hidden//groups) + groups*(hidden//groups)*(out//groups)
         in*out <?> in * (hidden//groups) + (hidden//groups) * out
@@ -312,34 +319,3 @@ for epoch in range(params.epochs):
     #    weight_mean, weight_std = weight_mean_std(weights)
     #    wandb.log({f'std/{weight_name}': weight_std.mean()})
     log(model_state, accuracy)
-    
-    
-    '''
-    if model_class == 'mutable_channels':
-        _, encoder_state, backbone_state, decoder_state = model_state
-        encoder_mean, encoder_std = weight_mean_std(encoder_state[0])
-        print(f'  encoder std: {encoder_std.mean()}')
-        backbone_linear_state, _ = backbone_state
-        for i, layer_state in enumerate(backbone_linear_state):
-            layer_mean, layer_std = weight_mean_std(layer_state[0])
-            print(f'  weight {i} std: {layer_std.mean()}')
-        decoder_mean, decoder_std = weight_mean_std(decoder_state[0])
-        print(f'  decoder std: {decoder_std.mean()}')
-    '''
-    
-    '''
-    weight0 = model_state[1][0][0]
-    n = weight0.shape[0]
-    weight0 = weight0.reshape(n, -1)
-    weight0_mean = weight0.mean(axis=-1)
-    weight0_std = weight0.std(axis=-1)
-    print(f'  weight0 mean min/max/mean: {weight0_mean.min():.04}/{weight0_mean.max():.04}/{weight0_mean.mean():.04}')
-    print(f'  weight0 std min/max/mean: {weight0_std.min():.04}/{weight0_std.max():.04}/{weight0_std.mean():.04}')
-
-    weight1 = model_state[1][3][0]
-    weight1 = weight1.reshape(n, -1)
-    weight1_mean = weight1.mean(axis=-1)
-    weight1_std = weight1.std(axis=-1)
-    print(f'  weight1 mean min/max/mean: {weight1_mean.min():.04}/{weight1_mean.max():.04}/{weight1_mean.mean():.04}')
-    print(f'  weight1 std min/max/mean: {weight1_std.min():.04}/{weight1_std.max():.04}/{weight1_std.mean():.04}')
-    '''
