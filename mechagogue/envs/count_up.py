@@ -1,3 +1,10 @@
+'''
+Count-up task environment.
+
+Simple MDP where the agent must count from 0 to n by selecting
+the correct next number at each step.
+'''
+
 import jax
 import jax.numpy as jnp
 import jax.random as jrng
