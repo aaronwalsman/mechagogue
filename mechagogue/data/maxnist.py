@@ -1,3 +1,10 @@
+'''
+Lightweight alternative to MNIST dattaset for testing.
+
+Creates synthetic 7x7 images of digits 0-9 with optional shifts, noise,
+and color variations.
+'''
+
 import numpy as np
 
 import jax

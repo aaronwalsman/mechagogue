@@ -5,4 +5,3 @@ from decision_process.pomdp import pomdp
 # underlying functions
 posg = pomdp
 decpomdp = pomdp
-

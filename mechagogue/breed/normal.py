@@ -1,7 +1,14 @@
+'''
+Normal distribution-based mutation for evolutionary algorithms.
+
+Provides mutation operators that add Gaussian noise to parameters,
+with options for sparse updates, automatic scaling, and parent averaging.
+'''
+
 import jax
 import jax.numpy as jnp
 import jax.random as jrng
- 
+
 from mechagogue.tree import tree_key
 
 def normal_mutate(
@@ -26,22 +33,8 @@ def normal_mutate(
                 fan_in = leaf.shape[-2]
                 alpha = (1-(learning_rate**2)*fan_in/2)**0.5
                 leaf = leaf * alpha
-            #num = jnp.sum(jnp.ones_like(delta)).astype(jnp.int32)
-            #num_zero = jnp.sum(delta * learning_rate == 0.)
-            #jax.debug.print('num zero {nz}/{n}', nz=num_zero, n=num)
-            #jax.debug.print('num zero {nz}/{n}', nz=num_zero, n=num)
-            #return leaf + learning_rate * delta
             new_leaf = leaf + learning_rate * delta
-            
-            # XXX
-            #new_leaf = leaf.astype(jnp.bfloat16) + learning_rate * delta.astype(jnp.bfloat16)
-            #new_leaf = new_leaf.astype(leaf.dtype)
-            #new_leaf = new_leaf.astype(jnp.bfloat16)
-            #new_leaf = new_leaf.astype(jnp.float32)
-            # XXX
-            
-            #unchanged = jnp.sum(new_leaf == leaf)
-            #jax.debug.print('num zero {nz}/{n}', nz=unchanged, n=num)
+
             return new_leaf
         
         keys = tree_key(key, jax.tree.structure(state))

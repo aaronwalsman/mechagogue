@@ -1,3 +1,10 @@
+'''
+Population game environment builder.
+
+Creates multi-agent population games with observations, active player tracking,
+and family relationships between generations.
+'''
+
 from typing import Any, Callable
 
 import jax.random as jrng
@@ -13,7 +20,7 @@ def population_game(
 ):
     '''
     Bundles the component functions of a partially observable ecological game
-    into reset and step functions.  The components are:
+    into reset and step functions. The components are:
     
     init_state: a function which constructs a new environment state given
         a random key
@@ -35,7 +42,6 @@ def population_game(
         ('state', 'action', 'next_state'))
     
     def reset(key):
-        # generate new keys
         state_key, observe_key = jrng.split(key)
         
         # generate the first state, observation and live vector
@@ -43,11 +49,9 @@ def population_game(
         obs = observe(observe_key, state)
         players = active_players(state)
         
-        # return
         return state, obs, players
     
     def step(key, state, action, traits):
-        # generate new keys
         transition_key, observe_key = jrng.split(key)
         
         # generate the next state and observation
@@ -56,7 +60,6 @@ def population_game(
         players = active_players(next_state)
         parents, children = family_info(state, action, next_state)
         
-        # return
         return next_state, obs, players, parents, children
     
     return reset, step
