@@ -1,23 +1,19 @@
-"""
-    Train a DQN agent on the MaxAtar Breakout environment and (optionally) visualize its
-    behavior.
-    
-    python breakout.py
-        -e, --epochs <number of training epochs>
-        -n, --episodes <number of greedy evaluation episodes after training>
-        --delay <delay between frames in seconds>
-        --gif <filename for GIF output>
+'''
+Train a DQN agent on the MaxAtar Breakout environment and (optionally) visualize its
+behavior.
 
-    Example:
-        python breakout.py -e 1000000 --gif breakout_1M_epochs.gif
-        
-        python breakout.py -e 1000000 --gif breakout_1M_epochs_cnn_tuned.gif
-        
-        python breakout.py -e 5000000 --gif breakout_5M_epochs_cnn.gif
-        
-        Trains for 1M epochs then generates 10 episodes of gameplay and saves a GIF to 
-        breakout_1M_epochs.gif with 0.5s between frames
-"""
+python breakout.py
+    -e, --epochs <number of training epochs>
+    -n, --episodes <number of greedy evaluation episodes after training>
+    --delay <delay between frames in seconds>
+    --gif <filename for GIF output>
+
+Example:
+    Trains for 1M epochs then generates 10 episodes of gameplay and saves a GIF to 
+    breakout_1M_epochs.gif with 0.5s between frames:
+    
+    python breakout.py -e 1000000 --gif breakout_1M_epochs.gif
+'''
 
 from __future__ import annotations
 
@@ -40,11 +36,10 @@ from mechagogue.wrappers import auto_reset_wrapper, sticky_action_wrapper
 from mechagogue.nn.q_networks import q_network_mlp, q_network_cnn
 from mechagogue.tree import tree_getitem
 
-
 # DQN hyper‑parameters
 NUM_EPOCHS_DEFAULT = 500_000
 
-# tuned config 2 (following MinAtar)
+# hyperparameter config (following MinAtar)
 BATCH_SIZE = 32
 PARALLEL_ENVS = 1
 REPLAY_BUFFER_SIZE = 100_000
@@ -61,52 +56,10 @@ RMS_ALPHA = 0.95
 RMS_EPS = 0.01
 RMS_CENTERED = True
 
-STICKY_P = 0.10        # ← set 0.0 to disable
+STICKY_P = 0.10        # set 0.0 to disable
 RAMPING = True
 
 NUM_Q_MODELS = 1
-
-# tuned config 1 (following MinAtar)
-# BATCH_SIZE = 32
-# PARALLEL_ENVS = 8
-# REPLAY_BUFFER_SIZE = 100_000
-# REPLAY_START_SIZE = 5_000
-# DISCOUNT = 0.99
-# START_EPSILON = 1.0
-# END_EPSILON = 0.1
-# FIRST_N_FRAMES = 100_000
-# TARGET_UPDATE = 0.1
-# TARGET_UPDATE_FREQUENCY = 1_000
-# BATCHES_PER_STEP = 1
-
-# LEARNING_RATE = 3e-3
-# MOMENTUM = 0.9
-
-# STICKY_P = 0.0
-# RAMPING = False
-
-# NUM_Q_MODELS = 2
-
-# old config
-# BATCH_SIZE = 32
-# PARALLEL_ENVS = 8
-# REPLAY_BUFFER_SIZE = 32*10000
-# REPLAY_START_SIZE = 5000
-# DISCOUNT = 0.9
-# START_EPSILON = 0.1
-# END_EPSILON = 0.1
-# FIRST_N_FRAMES = 100000
-# TARGET_UPDATE = 0.1
-# TARGET_UPDATE_FREQUENCY = 1000
-# BATCHES_PER_STEP = 1
-
-# LEARNING_RATE = 1e-2
-# MOMENTUM = 0
-
-# STICKY_P = 0.0
-# RAMPING = False
-
-# NUM_Q_MODELS = 2
 
 # Visualization helpers
 def build_palette(n_channels: int) -> np.ndarray:
@@ -116,17 +69,14 @@ def build_palette(n_channels: int) -> np.ndarray:
     ]
     return np.asarray(pal, dtype=np.uint8)
 
-
 def obs_to_rgb(obs: np.ndarray, palette: np.ndarray, scale: int = 40) -> np.ndarray:
     has_obj = obs.any(axis=2)
     idx = obs.argmax(axis=2) + 1
     idx[~has_obj] = 0  # background
-    rgb_small = palette[idx]  # 10×10×3
+    rgb_small = palette[idx]
     return np.repeat(np.repeat(rgb_small, scale, axis=0), scale, axis=1)
 
-
 PALETTE = build_palette(breakout.TOTAL_CHANNELS)
-
 
 def generate_trajectories(
     key: jax.random.PRNGKey,
@@ -137,7 +87,11 @@ def generate_trajectories(
     episodes: int,
     max_steps: int = 1_000,
 ) -> Tuple[jnp.ndarray, jnp.ndarray]:
-    """Greedily rollout `episodes` full episodes with at most `max_steps` frames each using the `model` policy."""
+    '''
+    Greedily rollout `episodes` full episodes with at most `max_steps` frames 
+    each using the `model` policy.
+    '''
+    
     def run_episode(key, _):
         key, reset_key = jrng.split(key)
         state, obs, done = env.init(reset_key)
@@ -176,9 +130,9 @@ def generate_trajectories(
     
     return all_obs, returns
 
-
 def write_gif(obs_frames: jnp.ndarray, gif_path: str, delay: float) -> None:
-    """Write observation frames to a GIF file."""
+    '''Write observation frames to a GIF file.'''
+    
     gif_path = str(Path(gif_path).expanduser())
     print(f"Recording gameplay to '{gif_path}'...")
     
@@ -191,10 +145,10 @@ def write_gif(obs_frames: jnp.ndarray, gif_path: str, delay: float) -> None:
         obs_to_rgb(np.asarray(obs, dtype=np.uint8), PALETTE)
         for obs in obs_frames
     ]
+    
     # Write all frames at once
     iio.imwrite(gif_path, frames, duration=delay)
     print(f"GIF saved: {gif_path}")
-
 
 # Training + evaluation wrapper
 def breakout_dqn(
@@ -242,7 +196,6 @@ def breakout_dqn(
         centered=cfg.rms_centered,
     )
 
-
     def random_action(key):
         return jrng.randint(key, shape=(), minval=0, maxval=6)
 
@@ -277,7 +230,6 @@ def breakout_dqn(
 
     return returns
 
-
 # CLI entry point
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train & evaluate a DQN on MaxAtar Breakout (GIF optional).")
@@ -287,11 +239,8 @@ def main() -> None:
     parser.add_argument("--gif", type=str, default=None, help="Output GIF filename; omit to disable recording")
     args = parser.parse_args()
 
-    # jax.config.update("jax_enable_x64", True)
     jnp.set_printoptions(precision=12, linewidth=120, suppress=True)
 
-    # 1234
-    # 2134
     master_key = jrng.key(2134)
     returns = breakout_dqn(
         master_key,
@@ -307,7 +256,6 @@ def main() -> None:
     stderr_ret = float(np.std(returns) / np.sqrt(len(returns)))
     print("-" * 60)
     print(f"Average return over {args.episodes} episodes: {mean_ret:.2f} ± {stderr_ret:.2f}")
-
 
 if __name__ == "__main__":
     main()
