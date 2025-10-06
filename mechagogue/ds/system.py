@@ -1,3 +1,10 @@
+'''
+Dynamical system abstractions and combinators.
+
+Provides builders and utilities for creating, composing, and iterating
+stateful systems with init/step interfaces.
+'''
+
 import jax
 import jax.random as jrng
 
@@ -136,30 +143,3 @@ def iterated_system_scan(system, steps, collect_aux=False):
     
 def iterated_system_for(system, steps):
     return composite_system((system,) * steps)
-
-'''
-def simulator(system):
-    @static_functions
-    class Simulator:
-        def simulate(key, steps, state=None):
-            if state is None:
-                key, init_key = jrng.split(key)
-                state = system.init(init_key)
-            
-            def simulate_step(key_state, _):
-                key, state = key_state
-                key, step_key = jrng.split(key)
-                next_state = system.forward(step_key, state)
-                return (key, next_state), None
-            
-            (key, state), _ = jax.lax.scan(
-                simulate_step,
-                (key, state),
-                None,
-                length=steps,
-            )
-            
-            return key, state
-    
-    return Simulator
-'''
