@@ -1,3 +1,7 @@
+'''
+AdamW optimizer with decoupled weight decay regularization.
+'''
+
 from typing import Any
 
 import jax

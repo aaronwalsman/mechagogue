@@ -1,8 +1,11 @@
+'''
+Stochastic Gradient Descent with momentum, Nesterov acceleration, and weight decay.
+'''
+
 import jax
 import jax.numpy as jnp
 
 from mechagogue.static import static_functions
-
 
 def sgd(
     learning_rate=3e-4,
@@ -27,7 +30,6 @@ def sgd(
                     return leaf_grad + leaf_model_param * weight_decay
                 grad = jax.tree.map(leaf_weight_decay, grad, model_state)
             
-            # TODO: is this right?
             if momentum:
                 def leaf_momentum(leaf_grad, leaf_param):
                     return (leaf_param * momentum + leaf_grad * (1.-damping))

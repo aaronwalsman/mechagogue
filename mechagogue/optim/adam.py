@@ -1,3 +1,7 @@
+'''
+Adam optimizer with bias correction for momentum and velocity estimates.
+'''
+
 from typing import Any
 
 import jax
