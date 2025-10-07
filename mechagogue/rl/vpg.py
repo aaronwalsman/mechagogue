@@ -1,3 +1,10 @@
+'''
+Vanilla Policy Gradient (VPG) algorithm for policy optimization.
+
+Implements on-policy reinforcement learning with Monte Carlo returns
+and policy gradient estimation.
+'''
+
 from typing import Any, Sequence
 
 import jax
@@ -17,7 +24,7 @@ from mechagogue.wrappers import (
 
 @static_dataclass
 class VPGConfig:
-    #num_steps: int = 81920 # <- how many steps
+    #num_steps: int = 81920
     parallel_envs: int = 32
     rollout_steps: int = 256
     training_epochs: int = 4
@@ -45,7 +52,6 @@ def vpg(
     init_optim,
     optim,
 ):
-    
     # wrap the environment
     reset_env, step_env = auto_reset_wrapper(reset_env, step_env)
     reset_env, step_env = episode_return_wrapper(reset_env, step_env)
@@ -92,15 +98,8 @@ def vpg(
             action = action_sampler(action_key)
             
             # take an environment step
-<<<<<<< HEAD
-            #step_keys = jrng.split(step_key, params.parallel_envs)
-            next_state, next_obs, reward, next_done = step_env(
-                step_key, state, action)
-=======
-            #step_keys = jrng.split(step_key, config.parallel_envs)
             next_env_state, next_obs, next_done, reward = step_env(
                 step_key, env_state, action)
->>>>>>> 2bf48eeed2d38421deff65715156249eacfc41ff
             
             return (
                 (next_env_state, next_obs, next_done),
@@ -111,13 +110,8 @@ def vpg(
         key, rollout_key = jrng.split(key)
         (env_state, obs, done), trajectories = jax.lax.scan(
             rollout,
-<<<<<<< HEAD
-            (state, obs, done),
-            jrng.split(rollout_key, params.rollout_steps),
-=======
             (state.env_state, state.obs, state.done),
             jrng.split(rollout_key, config.rollout_steps),
->>>>>>> 2bf48eeed2d38421deff65715156249eacfc41ff
         )
         
         # unpack trajectories
@@ -154,40 +148,6 @@ def vpg(
             o, a, r, d = shuffle_tree(shuffle_key, (o,a,r,d))
             o, a, r, d = batch_tree((o,a,r,d), params.batch_size)
             
-<<<<<<< HEAD
-            '''
-            num_transitions = params.parallel_envs * params.rollout_steps
-            shuffle_permutation = jrng.permutation(
-                shuffle_key, num_transitions)
-            
-            # apply the shuffle and batch the data
-            num_batches = num_transitions // params.batch_size
-            def shuffle_and_batch(x):
-                # first reshape to (num_transitions, ...)
-                s = x.shape[2:]
-                x = x.reshape(num_transitions, *s)
-                # second apply the permutation
-                x = x[shuffle_permutation]
-                # third reshape into batches
-                x = x.reshape(num_batches, params.batch_size, *s)
-                return x
-            key, batch_key = jrng.split(key)
-            batch_keys = jrng.split(batch_key, num_batches)
-            obs_batches = jax.tree.map(shuffle_and_batch, traj_obs)
-            action_batches = jax.tree.map(shuffle_and_batch, traj_action)
-            return_batches = shuffle_and_batch(traj_returns)
-            done_batches = shuffle_and_batch(traj_done)
-            batches = (
-                batch_keys,
-                obs_batches,
-                action_batches,
-                return_batches,
-                done_batches,
-            )
-            '''
-            
-=======
->>>>>>> 2bf48eeed2d38421deff65715156249eacfc41ff
             # train the model on all batches
             def train_batch(model_optim_state, key_obs_action_returns_done):
                 
