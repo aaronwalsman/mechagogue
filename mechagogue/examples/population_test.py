@@ -1,3 +1,10 @@
+'''
+Multi-site population evolution simulation.
+
+Tests natural selection dynamics where agents compete for energy at different
+sites, reproduce based on fitness, and evolve their strategies over time.
+'''
+
 from typing import Any
 
 import jax
@@ -169,7 +176,6 @@ def go(key):
             One epoch.
         '''
         train_state, active_players = train_state_active
-        #alive = train_state.players != -1
         offsets = (
             train_state.env_state.sites[:,None] - 
             (train_state.model_params)[None,:]
@@ -180,14 +186,8 @@ def go(key):
         min_distance = jnp.min(distances, axis=0)
         min_distance = jnp.where(active_players, min_distance, jnp.inf)
         jax.debug.print('----------')
-        #jax.debug.print('players {p}', p=train_state.players)
-        #jax.debug.print('parents {p}', p=train_state.parents[:,0])
-        #jax.debug.print('children {c}', c=train_state.children)
-        #jax.debug.print('EN {e}', e=train_state.env_state.energy)
         jax.debug.print('assign {a}', a=assignment)
         jax.debug.print('distances {md}', md=min_distance)
-        #jax.debug.print('params {mp}', mp=train_state.model_params)
-        #jax.debug.print('sites {sites}', sites=train_state.env_state.sites)
         
         def scan_body(train_state_active, key):
             train_state, _ = train_state_active

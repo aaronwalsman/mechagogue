@@ -1,3 +1,10 @@
+'''
+Count-up RL training examples using DQN and VPG.
+
+Demonstrates training agents on the count-up task with Deep Q-Networks
+and Vanilla Policy Gradient algorithms.
+'''
+
 import jax
 import jax.numpy as jnp
 import jax.random as jrng
@@ -11,14 +18,14 @@ from mechagogue.rl.dqn import DQNConfig, dqn
 from mechagogue.rl.vpg import VPGConfig, vpg
 
 def countup(n, reward_good=1.0, reward_bad=-1.0):
-    """
-        Environment where the agent must take action s+1 to advance from state s.
+    '''
+    Environment where the agent must take action s+1 to advance from state s.
 
-        States: 0 ... n
-        Actions: 0 ... n
-        Reward: reward_good for the correct action, reward_bad otherwise.
-        Episode terminates when state == n.
-    """
+    States: 0 ... n
+    Actions: 0 ... n
+    Reward: reward_good for the correct action, reward_bad otherwise.
+    Episode terminates when state == n.
+    '''
     
     def init_state():
         # start in state 0

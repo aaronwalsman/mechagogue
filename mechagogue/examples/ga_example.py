@@ -1,3 +1,10 @@
+'''
+Genetic algorithm training example on synthetic classification data.
+
+Demonstrates basic GA usage with an MLP on random example data,
+including elite selection and evaluation.
+'''
+
 import jax
 import jax.random as jrng
 
