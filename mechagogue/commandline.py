@@ -1,3 +1,10 @@
+'''
+Command-line interface utilities for dataclass-based configuration.
+
+Automatically generates argparse parsers from dataclass fields and supports
+nested dataclasses with hierarchical argument names.
+'''
+
 from typing import Tuple, get_origin, get_args
 
 import argparse

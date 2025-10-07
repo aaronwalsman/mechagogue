@@ -1,3 +1,10 @@
+'''
+Epoch-based training system with JIT compilation, reporting, and state persistence.
+
+Wraps systems to run multiple steps per epoch with automatic compilation,
+timing, state saving, and progress reporting.
+'''
+
 import time
 from typing import Any
 
@@ -28,8 +35,6 @@ def make_epoch_system(
 ):
     
     log = standardize_args(log, ('key', 'epoch', 'state', 'reports'))
-    
-    #compiled_system = compile_system(standardize_system(system))
     
     @static_functions
     class EpochSystem:
@@ -187,9 +192,6 @@ def make_epoch_system(
             return state
         
         def load_epoch(epoch):
-            #state_path = EpochSystem.state_path(epoch)
-            #example = jrng.key(0), EpochSystem.init(jrng.key(0))
-            #return load_example_data(example, state_path)
             epoch_key_example = (0, jrng.key(0))
             epoch_key_path = EpochSystem.epoch_key_path(epoch)
             next_epoch, key = load_example_data(

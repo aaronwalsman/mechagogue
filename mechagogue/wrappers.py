@@ -1,3 +1,10 @@
+'''
+Environment wrappers for automatic resets, episode tracking, and parallelization.
+
+Provides common RL environment wrappers including auto-reset on done, episode return
+tracking, sticky actions, and parallel environment execution.
+'''
+
 from typing import Any, Callable
 from dataclasses import dataclass
 
@@ -8,7 +15,6 @@ import jax.random as jrng
 from mechagogue.standardize import standardize_args
 from mechagogue.standardize import split_random_keys
 from mechagogue.static import static_functions
-
 
 def auto_reset_wrapper(env):
     @static_functions
@@ -40,10 +46,7 @@ def auto_reset_wrapper(env):
     
     return AutoResetWrapper
 
-
-# ---------------------------------------------------------------------------
 # Sticky-action wrapper, matching MinAtar: repeat previous action with prob p
-# ---------------------------------------------------------------------------
 def sticky_action_wrapper(env, prob=0.1):
     @static_functions
     class StickyActionWrapper:
@@ -71,7 +74,6 @@ def sticky_action_wrapper(env, prob=0.1):
             return (next_env_state, next_last_action), obs, done, rew
 
     return StickyActionWrapper
-
 
 def auto_reset_wrapper_overwrite_terminal(
     reset: Callable,
@@ -106,7 +108,6 @@ def auto_reset_wrapper_overwrite_terminal(
     
     return wrapped_reset, wrapped_step
 
-
 def episode_return_wrapper(
     reset: Callable,
     step: Callable,
@@ -123,7 +124,6 @@ def episode_return_wrapper(
         return state, obs, done, reward
     
     return wrapped_reset, wrapped_step
-
 
 def parallel_env_wrapper(env, num_parallel_envs: int):
     reset = standardize_args(env.init, ('key',))

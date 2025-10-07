@@ -1,3 +1,7 @@
+'''
+Conditional debugging utilities for JAX programs.
+'''
+
 import jax
 
 def conditional_print(cond, msg, hostage_value, **kwargs):

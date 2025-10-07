@@ -1,3 +1,10 @@
+'''
+PyTree manipulation utilities for batching, indexing, and data transformation.
+
+Provides operations on JAX PyTrees including indexing, batching, padding, clipping,
+shuffling, and shape manipulation along specified axes.
+'''
+
 import numpy as np
 
 import jax

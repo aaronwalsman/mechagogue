@@ -1,3 +1,10 @@
+'''
+Static dataclass and function decorators for JAX PyTree compatibility.
+
+Provides @static_data for frozen dataclasses that work as JAX PyTrees and
+@static_functions for classes with all static methods.
+'''
+
 from functools import partial
 import itertools
 import argparse
@@ -27,14 +34,6 @@ def static_data(cls):
         return cls(**dict(zip(field_names, children)))
     
     def replace(obj, **kwargs):
-        '''
-        field_dict = {
-            field.name : getattr(obj, field.name)
-            for field in fields(obj)
-        }
-        field_dict.update(kwargs)
-        return cls(**field_dict)
-        '''
         return dataclasses.replace(obj, **kwargs)
     
     def override_children(obj, recurse=False):

@@ -1,3 +1,7 @@
+'''
+DEPRECATED: Epoch-based training loop runner with reporting and state saving.
+'''
+
 from typing import Any, Callable, Optional
 
 import jax
