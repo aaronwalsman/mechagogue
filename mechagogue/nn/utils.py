@@ -1,6 +1,9 @@
-import numpy as np
+'''
+Utility functions for neural network operations and parameter counting.
+'''
 
 import jax
+import numpy as np
 
 def num_parameters(model):
     def is_parameter(leaf):

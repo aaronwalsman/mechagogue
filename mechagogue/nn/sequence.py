@@ -1,3 +1,7 @@
+'''
+Layer composition utilities for sequential and repeated layer patterns.
+'''
+
 from functools import partial
 from typing import Tuple, Any
 

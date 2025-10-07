@@ -1,3 +1,7 @@
+'''
+Weight initialization schemes including Kaiming, Xavier, and zero initialization.
+'''
+
 import jax
 import jax.numpy as jnp
 import jax.random as jrng

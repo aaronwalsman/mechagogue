@@ -1,3 +1,7 @@
+'''
+Base layer interface and standardization utilities for neural network layers.
+'''
+
 from mechagogue.standardize import standardize_interface
 from mechagogue.static import static_functions
 

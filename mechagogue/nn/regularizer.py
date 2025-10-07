@@ -1,3 +1,7 @@
+'''
+Regularization layers including dropout.
+'''
+
 import jax
 import jax.numpy as jnp
 import jax.random as jrng

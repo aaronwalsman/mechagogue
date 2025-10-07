@@ -1,3 +1,7 @@
+'''
+Linear layers including dense, grouped, embedding, and convolutional layers.
+'''
+
 import string
 from typing import Optional, Any
 

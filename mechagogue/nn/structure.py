@@ -1,3 +1,7 @@
+'''
+Structured layer operations for tuples and dictionaries of layers.
+'''
+
 from typing import Tuple, Dict, Any
 
 import jax.random as jrng
