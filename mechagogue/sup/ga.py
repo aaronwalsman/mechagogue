@@ -1,3 +1,10 @@
+'''
+Genetic Algorithm (GA) for supervised learning tasks.
+
+Trains populations of neural networks using fitness-based selection and breeding,
+without gradient-based optimization.
+'''
+
 import jax
 import jax.numpy as jnp
 import jax.random as jrng
@@ -27,17 +34,12 @@ class GAParams:
 
 def make_ga(
     params,
-    #init_model,
-    #model,
     model,
     breed,
     loss_function,
     test_function,
 ):
     
-    # wrap the provided functions
-    #init_model = standardize_args(init_model, ('key',))
-    #init_model = jax.vmap(init_model)
     if params.share_keys:
         parallel_model_axes = (None, None, 0)
     else:
@@ -45,9 +47,6 @@ def make_ga(
     model = standardize_layer(model)
     init_model = jax.vmap(model.init)
     parallel_model = jax.vmap(model.forward, in_axes=parallel_model_axes)
-    # need to figure out how to vmap post ignore_unused_args
-    #parallel_model = jax.vmap(model, in_axes=parallel_model_axes)
-    #model = standardize_args(model, ('key', 'x', 'state'))
     breed = standardize_args(breed, ('key', 'state'))
     breed = jax.vmap(breed)
     loss_function = standardize_args(loss_function, ('pred', 'y', 'mask', 'model_state'))
@@ -63,7 +62,6 @@ def make_ga(
             return model_state
         
         def train(key, x, y, model_state):
-            
             # shuffle and batch the data
             if params.shuffle:
                 key, shuffle_key = jrng.split(key)
@@ -80,7 +78,6 @@ def make_ga(
                 
                 def loss_step(fitness, key_x_y_mask):
                     key, x, y, mask = key_x_y_mask
-                    #x = x[None, ...]
                     model_key, loss_key = jrng.split(key)
                     if params.share_keys:
                         pred = parallel_model(model_key, x, model_state)
@@ -108,8 +105,6 @@ def make_ga(
                     fitness, params.population_size-params.dunces)
                 
                 key, parent_key, breed_key = jrng.split(key, 3)
-                #alive = jnp.zeros(params.population_size, dtype=jnp.bool)
-                #alive = alive.at[elite_ids].set(True)
                 num_children = params.population_size-params.elites
                 parents = jrng.choice(
                     parent_key, non_dunce_ids, shape=(num_children, 1))
@@ -124,8 +119,6 @@ def make_ga(
                     jnp.arange(params.elites, params.population_size),
                     child_state,
                 )
-                #_, model_state = step_population(
-                #    population_key, alive, children, model_state)
                 
                 return model_state, fitness
             

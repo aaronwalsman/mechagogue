@@ -1,3 +1,9 @@
+'''
+Supervised learning with backpropagation and gradient-based optimization.
+
+Standard training loop for neural networks using gradient descent on supervised tasks.
+'''
+
 import jax
 import jax.numpy as jnp
 import jax.random as jrng
@@ -34,8 +40,6 @@ def supervised_backprop(model, optimizer, loss_function):
             model_state, optim_state = optimizer.optimize(
                 optim_key, grad, state.model_state, state.optim_state)
             return (model_state, optim_state), (loss, grad)
-        
-        TEST = WTF
     
     return SupervisedBackprop
 
