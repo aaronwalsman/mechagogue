@@ -22,4 +22,4 @@ python -m pip install -e .
 
 ## Quick Start
 
-See [`examples/`](mechagogue/examples/) for some examples.
+See [`examples/`](mechagogue/examples/).
