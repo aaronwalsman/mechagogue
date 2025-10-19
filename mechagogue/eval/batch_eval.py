@@ -1,3 +1,10 @@
+'''
+Batched model eval utilities.
+
+Evaluates models on datasets by splitting into batches,
+padding as needed, and computing weighted mean metrics.
+'''
+
 import jax
 import jax.numpy as jnp
 import jax.random as jrng

@@ -1,3 +1,10 @@
+'''
+Vanilla Policy Gradient training on Nom environment.
+
+Example of applying VPG to the Nom foraging environment with
+a simple random policy baseline.
+'''
+
 import jax.random as jrng
 
 from dirt.examples.nom import NomParams, NomAction, nom

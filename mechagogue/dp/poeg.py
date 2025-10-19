@@ -1,3 +1,10 @@
+'''
+Partially Observable Ecological Game (POEG) environment framework.
+
+Abstractions for multi-agent ecological games with partial observability,
+population dynamics, and family relationships between agents.
+'''
+
 from typing import Any, Callable
 
 import jax
@@ -51,7 +58,6 @@ def make_poeg(
     @static_functions
     class POEG:
         def init(key):
-            # generate new keys
             state_key, observe_key = jrng.split(key)
             
             # generate the first state, observation and live vector
@@ -59,11 +65,9 @@ def make_poeg(
             obs = observe(observe_key, state)
             players = active_players(state)
             
-            # return
             return state, obs, players
         
         def step(key, state, action, traits):
-            # generate new keys
             transition_key, observe_key = jrng.split(key)
             
             # generate the next state and observation
@@ -72,14 +76,12 @@ def make_poeg(
             players = active_players(next_state)
             parents, children = family_info(state, action, next_state)
             
-            # return
             return next_state, obs, players, parents, children
         
         def population(state):
             return jnp.sum(active_players(state))
         
         def extinct(state):
-            #n = active_players(state).sum()
             return not jnp.any(active_players(state))
     
     setattr(POEG, 'init_state', init_state)

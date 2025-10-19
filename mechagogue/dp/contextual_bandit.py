@@ -19,14 +19,10 @@ def contextual_bandit(
         reward, ('key', 'context', 'action'))
     
     def step(key, context, action):
-        # generate new keys
         reward_key, context_key = jrng.split(key, 4)
-        
         rew = reward(reward_key, context, action)
-        
         next_context = sample_context(context_key)
         
-        # return
         return next_context, rew
     
     return sample_context, step

@@ -1,3 +1,10 @@
+'''
+Train mutable MLP on MaxNIST using genetic algorithm.
+
+Evolves neural networks with dynamic architecture (variable number of layers)
+for multi-digit classification using population-based optimization.
+'''
+
 import argparse
 
 import numpy as np
@@ -130,24 +137,6 @@ elif model_class == 'mutable':
         return [None, mlp_state]
     
     breed = mutate
-    
-    '''
-    def get_labelled_weights(model_state):
-        labelled_weights = {
-            'encoder' : model_state[1][0],
-            'decoder' : model_state[3][0],
-        }
-        labelled_weights.update({
-            f'weight_{i}' : layer_state[0]
-            for i, layer_state in enumerate(model_state[2][0])
-        })
-        return labelled_weights
-    
-    def get_labelled_weight_std_target(model_state):
-        weight_info = backbone_weight_info(
-            model_state[2], shared_dynamic_channels)
-        breakpoint()
-    '''
 
 # build the supervised learning algorithm
 ga_params = GAParams(
@@ -178,44 +167,11 @@ wandb.init(
     entity='harvardml',
 )
 
-#def weight_mean_std(weight):
-#    n = weight.shape[0]
-#    weight = weight.reshape(n, -1)
-#    #weight_mean = weight.mean(axis=-1)
-#    #weight_std = weight.std(axis=-1)
-#    return weight_mean, weight_std
-#
-#def dynamic_weight_mean_std(weight, in_channels, out_channels):
-#    n,i,o = weight.shape
-#    weight_sum = jnp.sum(weight.reshape(n, -1), axis=1)
-#    weight_mean = weight_sum / (in_channels * out_channels)
-#    var = (weight_mean.reshape(n, None, None) - weight)**2
-#    breakpoint()
-#    #var = jnp.where(jnp.arange(i)[None,:] < in_channels, 
-
 def log(model_state, accuracy):
     datapoint = {
         'accuracy' : accuracy.mean()
     }
-    
-    '''
-    labelled_weights = get_labelled_weights(model_state)
-    datapoint.update({
-        f'std/{weight_name}' : dynamic_weight_mean_std(weight, )[1].mean()
-        for weight_name, weight in labelled_weights.items()
-    })
-    '''
-    
-    '''
-    weight_std_target = get_labelled_weight_std_target(model_state)
-    
-    if model_class == 'mutable_channels':
-        dynamic_channel_state = model_state[2][1]
-        datapoint.update({
-            'channels':
-            dynamic_channel_state[...,0].astype(jnp.float32).mean(),
-        })
-    '''
+
     wandb.log(datapoint)
 
 #labelled_weights = get_labelled_weights(model_state)

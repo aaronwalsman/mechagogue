@@ -1,3 +1,10 @@
+'''
+Ecology policy and population abstractions.
+
+Provides interfaces for individual agent policies and vectorized populations
+with actions, adaptation, breeding, and trait inheritance.
+'''
+
 import jax
 import jax.random as jrng
 

@@ -1,3 +1,7 @@
+'''
+Debugging utility layers for printing activations, shapes, and breakpoints.
+'''
+
 import jax
 import jax.numpy as jnp
 

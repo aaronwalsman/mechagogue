@@ -1,3 +1,10 @@
+'''
+Partially Observable Markov Decision Process (POMDP) framework.
+
+Builder for POMDP environments from component functions including
+state transitions, observations, rewards, and terminal conditions.
+'''
+
 from typing import Any, Callable, Tuple
 
 import jax.random as jrng
@@ -5,10 +12,8 @@ import jax.random as jrng
 from mechagogue.standardize import standardize_args, standardize_interface
 from mechagogue.static import static_functions, static_data
 
-
 default_init = lambda : None
 default_step = lambda state : state
-
 
 def standardize_pomdp(pomdp):
     return standardize_interface(
@@ -16,7 +21,6 @@ def standardize_pomdp(pomdp):
         init = (('key',), default_init),
         step = (('key', 'state', 'action'), default_step),
     )
-
 
 def make_pomdp(
     init_state : Callable,
@@ -69,7 +73,6 @@ def make_pomdp(
     @static_functions
     class POMDP:
         def init(key):
-            # generate new keys
             initialize_key, observe_key = jrng.split(key, 2)
             
             # generate the first state and observation
@@ -77,11 +80,9 @@ def make_pomdp(
             obs = observe(observe_key, state)
             done = terminal(state)
             
-            # return
             return state, obs, done
         
         def step(key, state, action):
-            # generate new keys
             transition_key, observe_key, reward_key = jrng.split(key, 3)
             
             # generate the next state and observation
@@ -92,7 +93,6 @@ def make_pomdp(
             rew = reward(reward_key, state, action, next_state)
             done = terminal(next_state)
             
-            # return
             return next_state, obs, done, rew
     
     return POMDP

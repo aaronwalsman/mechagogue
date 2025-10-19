@@ -1,3 +1,7 @@
+'''
+Multi-layer perceptron (MLP) with configurable hidden layers and dropout.
+'''
+
 import jax.numpy as jnp
 
 from mechagogue.nn.linear import linear_layer

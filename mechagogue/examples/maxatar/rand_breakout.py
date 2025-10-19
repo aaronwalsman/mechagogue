@@ -1,3 +1,7 @@
+'''
+Generate and visualize a random-action policy playing Breakout.
+'''
+
 import jax
 import jax.numpy as jnp
 import jax.random as jrng
@@ -9,18 +13,19 @@ import imageio.v3 as iio
 import mechagogue.envs.maxatar.breakout as breakout
 from mechagogue.wrappers import auto_reset_wrapper, sticky_action_wrapper
 
-
 # Initialize the environment
 env = breakout.make_env(ramping=True)
 env = auto_reset_wrapper(env)  # sticky_action_wrapper(env, prob=0.1)
 
-
 def rand_breakout(key):
-    """
-        Generate n frames with a random-action policy; returns
-       (state, obs, done, action, reward) stacked along axis 0.
-    """
-    n = 100  # number of frames to generate
+    '''
+    Generate n frames with a random-action policy
+    Returns:
+        (state, obs, done, action, reward) stacked along axis 0
+    '''
+
+    # number of frames to generate
+    n = 100
     
     key, init_key = jrng.split(key)
     state, obs, done = env.init(init_key)
@@ -73,4 +78,5 @@ for i, obs_i in enumerate(obs):
 
 plt.close(fig)
 
-iio.imwrite("out/breakout_random_STATIC_FUNC_CHANGES.gif", frames, duration=pause)
+out_path = "out/breakout_random.gif"
+iio.imwrite(out_path, frames, duration=pause)

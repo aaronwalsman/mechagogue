@@ -1,3 +1,10 @@
+'''
+Serialization utilities for JAX arrays and PyTrees using msgpack.
+
+Supports numpy/JAX arrays, PRNG keys, complex numbers, and optional compression.
+Built using Flax's serialization module as reference, with added PRNG key support.
+'''
+
 from functools import partial
 
 import numpy as np
@@ -12,11 +19,6 @@ import jax.numpy as jnp
 import jax.random as jrng
 
 import msgpack
-
-'''
-Built using flax's serialization module as reference, but added support for
-PRNG keys.
-'''
 
 JNP_ARRAY_EXT_ID = 1
 NP_ARRAY_EXT_ID = 2

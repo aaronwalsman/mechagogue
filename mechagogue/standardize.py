@@ -1,3 +1,10 @@
+'''
+Function signature standardization utilities for consistent interfaces.
+
+Provides tools to wrap functions with standardized argument names and handle
+optional arguments, enabling flexible function composition across the codebase.
+'''
+
 import copy
 import inspect
 from functools import wraps

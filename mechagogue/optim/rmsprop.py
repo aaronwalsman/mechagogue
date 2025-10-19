@@ -1,8 +1,11 @@
+'''
+RMSProp optimizer with optional centered variant for adaptive learning rates.
+'''
+
 import jax
 import jax.numpy as jnp
 
 from mechagogue.static import static_functions
-
 
 def rmsprop(
     learning_rate: float,
@@ -10,18 +13,18 @@ def rmsprop(
     eps: float = 1e-2,
     centered: bool = True
 ):
-    """
-        RMSProp optimizer.
+    '''
+    RMSProp optimizer.
 
-        Args:
-            learning_rate: step size (alpha in MinAtar code).
-            alpha: smoothing constant for squared gradient (MinAtar's SQUARED_GRAD_MOMENTUM).
-            eps: term added to denominator for numerical stability (MinAtar's MIN_SQUARED_GRAD).
-            centered: if True, uses centered RMSProp.
+    Args:
+        learning_rate: step size (alpha in MinAtar code).
+        alpha: smoothing constant for squared gradient (MinAtar's SQUARED_GRAD_MOMENTUM).
+        eps: term added to denominator for numerical stability (MinAtar's MIN_SQUARED_GRAD).
+        centered: if True, uses centered RMSProp.
 
-        Returns:
-            RMSProp object with init and optimize static methods
-    """
+    Returns:
+        RMSProp object with init and optimize static methods
+    '''
     @static_functions
     class RMSProp:
         def init(model_state):

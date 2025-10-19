@@ -44,13 +44,11 @@ def make_natural_selection(
     
     @static_functions
     class NaturalSelection:
-        
         # annotate that the init and step functions produce auxilliary data
         init_has_aux = True
         step_has_aux = True
         
         def init(key):
-            
             # generate keys
             env_key, model_key = jrng.split(key)
             
@@ -67,7 +65,6 @@ def make_natural_selection(
             return next_state, active_players
         
         def step(key, state):
-            
             # generate keys
             action_key, adapt_key, env_key, breed_key = jrng.split(key, 4)
             
@@ -121,7 +118,6 @@ def make_natural_selection(
                     population_block, block_path, compress=compress)
         
         def load_state(path):
-            #example_env_state, example_obs, _ = env.init(jrng.key(0))
             env_obs_path = path.replace('.data', '.env.data')
             example_state, _ = NaturalSelection.init(jrng.key(0))
             env_state, obs = load_example_data(
@@ -144,10 +140,5 @@ def make_natural_selection(
                 population_state = population_blocks[0]
             
             return NaturalSelectionState(env_state, obs, population_state)
-        
-        #def epoch(key, state):
-        #    step = jax.jit(NaturalSelection.step)
-        #    def scan_step(key_state, _):
-        #        key, state = key_state
-    
+
     return NaturalSelection

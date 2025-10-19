@@ -1,3 +1,7 @@
+'''
+Utility for generating synthetic classification data for examples and testing.
+'''
+
 import jax.random as jrng
 
 def make_example_data(

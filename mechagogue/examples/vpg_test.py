@@ -1,3 +1,9 @@
+'''
+Test example for Vanilla Policy Gradient (VPG) on a simple 2D navigation task.
+
+Uses a uniform random policy to navigate to a target position in a grid environment.
+'''
+
 import jax
 import jax.numpy as jnp
 import jax.random as jrng

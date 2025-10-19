@@ -1,3 +1,10 @@
+'''
+Example demonstrating supervised learning with SUP (Supervised Universal Predictor).
+
+This example trains a multi-layer perceptron (MLP) on synthetic classification data
+using the SUP framework with SGD optimization.
+'''
+
 import jax
 import jax.random as jrng
 

@@ -1,3 +1,7 @@
+'''
+Attention mechanism layer with soft and hard attention modes.
+'''
+
 import jax
 import jax.random as jrng
 import jax.numpy as jnp
@@ -13,6 +17,7 @@ def make_attention_layer(temperature, mode='soft'):
         
         qk = (q[:,None] * k[None,:]).sum(-1) / (temperature * qkc**0.5)
         pqk = jnn.softmax(qk, axis=1)
+        
         #jax.debug.print('q {q}\nk {k}\nqk {qk}\npqk {pqk}',
         #    q=jnp.linalg.norm(q, axis=-1),
         #    k=jnp.linalg.norm(k, axis=-1),

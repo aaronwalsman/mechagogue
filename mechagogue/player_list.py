@@ -1,3 +1,10 @@
+'''
+Player list data structures for managing dynamic populations in multi-agent systems.
+
+Provides different player tracking schemes: anonymous (boolean masks), identified
+(unique IDs), birthday-based (timestamped), and family trees (parent-child relationships).
+'''
+
 import jax
 import jax.numpy as jnp
 

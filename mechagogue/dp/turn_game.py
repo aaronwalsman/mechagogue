@@ -1,8 +1,13 @@
+'''
+Turn-based game environment builder.
+
+Creates multi-player turn-based games with configurable state transitions,
+observations, rewards, and player tracking.
+'''
+
 from typing import Any, Callable
 
 import jax.random as jrng
-
-#from decision_process.filter_args import filter_args
 
 def turn_game(
     initialize_fn: Callable,
@@ -33,7 +38,6 @@ def turn_game(
         # compute the observation
         obs = observe_fn(observe_key, config, state)
         
-        # return
         return state, players, current_player, obs
     
     def step(key, state, action):
@@ -54,5 +58,4 @@ def turn_game(
         done_args = filter_args(done_format, state, action, next_state)
         done = done_fn(done_key, config, *done_args)
         
-        # return
         return next_state, num_players, current_player, obs, reward, done

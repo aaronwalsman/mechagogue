@@ -1,3 +1,10 @@
+'''
+Deep Q-Network (DQN) with experience replay and target networks.
+
+Implements the DQN algorithm for discrete action spaces with epsilon-greedy
+exploration, replay buffer, and periodic target network updates.
+'''
+
 from typing import Any
 
 import jax
@@ -14,7 +21,6 @@ from mechagogue.wrappers import (
 )
 from mechagogue.tree import tree_getitem, tree_setitem, ravel_tree
 
-
 @static_data
 class DQNConfig:
     # data collection
@@ -23,7 +29,7 @@ class DQNConfig:
     replay_buffer_size: int = 32*5000
     replay_start_size: int = 5000
     rollout_steps: int = 1
-    # TODO:
+
     # initial_random_data: int = 1000*32,
     
     # learning hyperparameters
@@ -44,7 +50,6 @@ class DQNConfig:
     num_q_models: int = 2
     batches_per_step: int = 1  # frequency of gradient steps
     
-
 @static_data
 class DQNState:
     env_state : Any = None
@@ -57,9 +62,8 @@ class DQNState:
     current_step : int = 0
     policy_steps : int = 0  # count of gradient updates so far
 
-
 def huber_loss(error: jnp.ndarray, delta: float = 1.0) -> jnp.ndarray:
-    """Compute element-wise Huber loss."""
+    '''Compute element-wise Huber loss.'''
     abs_err = jnp.abs(error)
     is_small = abs_err <= delta
     # quadratic part: 0.5 * error^2    for |error| <= delta  
@@ -68,7 +72,6 @@ def huber_loss(error: jnp.ndarray, delta: float = 1.0) -> jnp.ndarray:
                      0.5 * error**2,
                      delta * (abs_err - 0.5 * delta))
 
-
 def dqn(
     config,
     env,
@@ -76,7 +79,6 @@ def dqn(
     optimizer,
     random_action,
 ):
-    
     assert (
         config.replay_buffer_size %
         (config.parallel_envs * config.rollout_steps)

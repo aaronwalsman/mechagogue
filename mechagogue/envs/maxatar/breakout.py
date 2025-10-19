@@ -1,3 +1,10 @@
+'''
+Breakout environment with difficulty ramping.
+
+JAX-based Breakout game with paddle, ball, and brick mechanics.
+Supports optional speed ramping and perfect-play mode.
+'''
+
 import jax
 import jax.random as jrng
 import jax.numpy as jnp
@@ -11,15 +18,16 @@ BALL_CHANNEL = 1
 TRAIL_CHANNEL = 2
 BRICK_CHANNEL = 3
 
-# Difficulty ramping settings
-MAX_SPEED = 3          # cap (MinAtar uses 3)
-SPEED_STEP = 1         # delta each time bricks respawn
+# Difficulty ramping settings (following MinAtar)
+MAX_SPEED = 3
+SPEED_STEP = 1
 
 # Direction codes
 # 0 : left-up   ◤
 # 1 : right-up  ◥
 # 2 : right-down◢
 # 3 : left-down ◣
+
 TRANSITION_WALL  = jnp.array([1, 0, 3, 2], dtype=jnp.int32)  # reflect on vertical wall
 TRANSITION_CEIL  = jnp.array([3, 2, 1, 0], dtype=jnp.int32)  # reflect on horizontal wall
 TRANSITION_BRICK = TRANSITION_CEIL                           # identical to ceiling bounce
@@ -58,9 +66,7 @@ def init_state(key):
         terminal=False,
     )
 
-# ============================================================
-# 1.  One-cell update of the ball and environment (“inner step”)
-# ============================================================
+# One-cell update of the ball and environment (“inner step”)
 def _single_ball_update(state, pos):
     """
     Advances the ball exactly one grid cell 
@@ -123,9 +129,7 @@ def _single_ball_update(state, pos):
         terminal=terminal,
     )
 
-# ============================================================
-# 2.  External transition (moves the ball `speed` cells / step)
-# ============================================================
+# External transition (moves the ball `speed` cells / step)
 def transition(key, state, action, *, ramping=True, perfect=False):
     """
     Environment-level step:
@@ -188,10 +192,8 @@ def render(obs):
         obs[...,3] * 4
     )
 
-# -------------------------------------------------------------------
 # Factory: build a (reset, step) pair with or without ramping and 
 # perfect-action policy.
-# -------------------------------------------------------------------
 def make_env(*, ramping: bool = True, perfect: bool = False):
     """
     Returns POMDP object with static functions init, step.
@@ -202,13 +204,12 @@ def make_env(*, ramping: bool = True, perfect: bool = False):
         env.init(key)
         env.step(key, state, action)
     """
-    # bind the flag via a closure / partial
     def _transition(key, state, action):
         return transition(key, state, action, ramping=ramping, perfect=perfect)
 
     return make_pomdp(
         init_state,
-        _transition,     # ← uses the chosen ramping behaviour
+        _transition,
         observe,
         terminal,
         reward,

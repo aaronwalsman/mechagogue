@@ -1,3 +1,7 @@
+'''
+Test script for inspecting pooling layer behavior on synthetic data.
+'''
+
 import jax.numpy as jnp
 
 from mechagogue.nn.pool import maxpool_layer, avgpool_layer
