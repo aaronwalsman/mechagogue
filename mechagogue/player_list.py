@@ -168,7 +168,7 @@ def make_birthday_player_list(max_players, location_offset=0):
     class BirthdayPlayerList:
         
         empty_player = jnp.array([-1,-1])
-        max_players = max_players
+        max_players = None
         
         @static_data
         class State:
@@ -222,7 +222,8 @@ def make_birthday_player_list(max_players, location_offset=0):
             birthdays, add_locations = insert_players(
                 birthdays, active, add, current_time)
             players = state.players.at[:,0].set(birthdays)
-            players = players.at[add_locations,1].set(add_locations)
+            players = players.at[add_locations,1].set(
+                add_locations + location_offset)
             state = state.replace(players=players, current_time=current_time)
             return state, add_locations, players[add_locations]
         
@@ -231,6 +232,8 @@ def make_birthday_player_list(max_players, location_offset=0):
         
         def get_ids(state, locations):
             return state.players[locations]
+    
+    BirthdayPlayerList.max_players = max_players
     
     return BirthdayPlayerList
 
@@ -314,7 +317,7 @@ if __name__ == '__main__':
     children_per_turn = 4
     steps = 4
     
-    player_list = make_integer_player_list(max_players)
+    player_list = make_birthday_player_list(max_players, location_offset=16)
     player_family_tree = make_player_family_tree(player_list)
     
     family_tree_state = player_family_tree.init(initial_players)
@@ -349,6 +352,7 @@ if __name__ == '__main__':
     print(family_tree_state.player_state.players)
     print(family_tree_state.parents)
     
+    '''
     insert_ids = jnp.array([
         82,
         91,
@@ -395,3 +399,4 @@ if __name__ == '__main__':
     
     print(family_tree_state.player_state.players)
     print(family_tree_state.parents)
+    '''
