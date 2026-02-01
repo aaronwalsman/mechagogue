@@ -7,7 +7,7 @@ from typing import Any
 import jax
 import jax.numpy as jnp
 
-from mechagogue.static_dataclass import static_data, static_functions
+from mechagogue.static import static_data, static_functions
 
 @static_data
 class AdamState:

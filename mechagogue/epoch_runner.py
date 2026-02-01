@@ -7,7 +7,7 @@ from typing import Any, Callable, Optional
 import jax
 import jax.random as jrng
 
-import chex
+import jax.numpy as jnp
 
 from mechagogue.static_dataclass import static_dataclass
 from mechagogue.arg_wrappers import ignore_unused_args
@@ -27,7 +27,7 @@ class EpochRunnerParams:
         return self.steps_per_epoch // self.report_frequency
 
 def epoch_runner(
-    key : chex.PRNGKey,
+    key : jnp.ndarray,
     params : Any,
     init : Callable,
     step : Callable,

@@ -11,7 +11,7 @@ authors = [
 ]
 description = "Instructive RL Training Code"
 readme = "README.md"
-requires-python = ">=3.11,<3.13"
+requires-python = ">=3.10,<3.13"
 classifiers = [
   "Programming Language :: Python :: 3",
   "License :: OSI Approved :: MIT License",
@@ -20,7 +20,6 @@ classifiers = [
 dependencies = [
   "jax",
   "makefun",
-  "chex",
   "msgpack",
   "numpy",
   "matplotlib",

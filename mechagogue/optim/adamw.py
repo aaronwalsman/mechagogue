@@ -30,7 +30,6 @@ def adamw(
             return AdamWState(
                 momentum,
                 velocity,
-                weight_decay,
                 0,
             )
         

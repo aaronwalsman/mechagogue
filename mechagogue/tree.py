@@ -12,7 +12,10 @@ import jax.numpy as jnp
 import jax.random as jrng
 
 def tree_len(tree, axis=0):
-    return jax.tree.leaves(tree)[0].shape[axis]
+    for leaf in jax.tree.leaves(tree):
+        if leaf is not None:
+            return leaf.shape[axis]
+    raise ValueError("tree_len requires at least one non-None leaf.")
 
 def tree_getitem(tree, index):
     def leaf_getitem(leaf):
@@ -31,6 +34,8 @@ def tree_additem(tree, index, tree_value):
 
 def ravel_tree(tree, start_axis=0, end_axis=None):
     def leaf_ravel(leaf):
+        if leaf is None:
+            return None
         c = leaf.shape
         e = end_axis
         if e is None:
@@ -45,6 +50,8 @@ def tree_key(key, tree_structure):
 
 def shuffle_tree(key, tree, axis=0):
     def shuffle_leaf(leaf):
+        if leaf is None:
+            return None
         return jrng.permutation(key, leaf, axis=axis)
     return jax.tree.map(shuffle_leaf, tree)
 
@@ -96,6 +103,8 @@ def batch_tree(tree, batch_size, axis=0):
     )
     num_batches = num_elements // batch_size
     def batch_leaf(leaf):
+        if leaf is None:
+            return None
         assert leaf.shape[axis] == num_elements
         leading_shape = leaf.shape[:axis]
         trailing_shape = leaf.shape[axis+1:]
