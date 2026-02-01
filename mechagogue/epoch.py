@@ -5,6 +5,7 @@ Wraps systems to run multiple steps per epoch with automatic compilation,
 timing, state saving, and progress reporting.
 '''
 
+import os
 import time
 from typing import Any
 
@@ -139,9 +140,17 @@ def make_epoch_system(
             # save states
             if save_states:
                 state = jax.block_until_ready(state)
-                
+
                 system_state_path = EpochSystem.system_state_path(epoch)
                 epoch_key_path = EpochSystem.epoch_key_path(epoch)
+                os.makedirs(
+                    os.path.dirname(system_state_path),
+                    exist_ok=True,
+                )
+                os.makedirs(
+                    os.path.dirname(epoch_key_path),
+                    exist_ok=True,
+                )
                 
                 if verbose:
                     print(f'  saving system state to: {system_state_path}')
@@ -169,6 +178,10 @@ def make_epoch_system(
             # save reports
             if save_reports:
                 reports_path = EpochSystem.reports_path(epoch)
+                os.makedirs(
+                    os.path.dirname(reports_path),
+                    exist_ok=True,
+                )
                 reports = jax.block_until_ready(reports)
                 if verbose:
                     print(f'  saving reports to: {reports_path}')
