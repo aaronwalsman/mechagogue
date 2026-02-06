@@ -173,16 +173,13 @@ def make_ppo_selfplay(
 
                 return jax.tree.map(_leaf, tree, value)
 
-            def rollout(carry, inputs):
-                key_step, step_idx = inputs
+            def rollout(carry, key_step):
                 (
                     env_state,
                     obs,
                     player,
                     done,
                     memory,
-                    reward_buffer,
-                    last_action,
                 ) = carry
                 policy_key, memory_key, env_key = jrng.split(key_step, 3)
 
@@ -216,18 +213,6 @@ def make_ppo_selfplay(
                     env.step(env_key, env_state, action)
                 )
 
-                last_action = last_action.at[
-                    jnp.arange(params.parallel_envs), player
-                ].set(step_idx)
-                reward_for_action = jnp.take_along_axis(
-                    reward_buffer, player[:, None], axis=1
-                )[:, 0]
-                reward_buffer = reward_buffer.at[
-                    jnp.arange(params.parallel_envs), player].set(0.0)
-                reward_buffer = reward_buffer + reward
-                bonus_val = jnp.where(next_done[:, None], reward_buffer, 0.0)
-                bonus_idx = last_action
-
                 if has_memory:
                     memory = _set_player(memory, player, next_memory)
                     memory_keys = jrng.split(
@@ -245,29 +230,16 @@ def make_ppo_selfplay(
                         memory,
                         init_memory,
                     )
-                reward_buffer = _select_by_done(
-                    next_done,
-                    reward_buffer,
-                    jnp.zeros_like(reward_buffer),
-                )
-                last_action = _select_by_done(
-                    next_done,
-                    last_action,
-                    jnp.full_like(last_action, -1),
-                )
                 data = (
                     obs,
                     action,
                     logp,
                     value,
-                    reward_for_action,
+                    reward,
                     next_done,
                     player,
                     memory_sel if has_memory else None,
-                    bonus_idx,
-                    bonus_val,
                     entropy,
-                    reward,
                 )
                 return (
                     next_state,
@@ -275,19 +247,10 @@ def make_ppo_selfplay(
                     next_player,
                     jnp.zeros_like(done),
                     memory,
-                    reward_buffer,
-                    last_action,
                 ), data
             
             key, rollout_key = jrng.split(key)
             keys = jrng.split(rollout_key, params.rollout_steps)
-            step_idx = jnp.arange(params.rollout_steps, dtype=jnp.int32)
-            reward_buffer = jnp.zeros(
-                (params.parallel_envs, num_players), dtype=jnp.float32
-            )
-            last_action = jnp.full(
-                (params.parallel_envs, num_players), -1, dtype=jnp.int32
-            )
             step_data, rollout_data = jax.lax.scan(
                 rollout,
                 (
@@ -296,18 +259,14 @@ def make_ppo_selfplay(
                     state.player,
                     state.done,
                     state.memory,
-                    reward_buffer,
-                    last_action,
                 ),
-                (keys, step_idx),
+                keys,
             )
             (
                 env_state,
                 obs, player,
                 done,
                 memory,
-                reward_buffer,
-                last_action,
             ) = step_data
             
             (
@@ -315,34 +274,12 @@ def make_ppo_selfplay(
                 traj_action,
                 traj_logp,
                 traj_value,
-                traj_reward,
+                traj_env_reward,
                 traj_done_env,
                 traj_player,
                 traj_memory,
-                traj_bonus_idx,
-                traj_bonus_val,
                 traj_entropy,
-                traj_env_reward,
             ) = rollout_data
-
-            def _apply_terminal_bonus(traj_reward, bonus_idx, bonus_val):
-                env_idx = jnp.arange(params.parallel_envs)
-                env_idx = jnp.broadcast_to(
-                    env_idx[None, :, None],
-                    bonus_idx.shape,
-                )
-                time_idx = bonus_idx.reshape(-1)
-                env_idx = env_idx.reshape(-1)
-                bonus_val = bonus_val.reshape(-1)
-                valid = time_idx >= 0
-                time_idx = jnp.where(valid, time_idx, 0)
-                env_idx = jnp.where(valid, env_idx, 0)
-                bonus_val = jnp.where(valid, bonus_val, 0.0)
-                return traj_reward.at[time_idx, env_idx].add(bonus_val)
-
-            traj_reward = _apply_terminal_bonus(
-                traj_reward, traj_bonus_idx, traj_bonus_val
-            )
             if has_memory:
                 last_value = policy.value(
                     obs,
@@ -357,7 +294,7 @@ def make_ppo_selfplay(
                     done = jnp.expand_dims(done, axis=-1)
                 return jnp.broadcast_to(done, target.shape)
 
-            traj_done = _expand_done(traj_done_env, traj_reward)
+            traj_done = _expand_done(traj_done_env, traj_env_reward)
 
             def _expand_player_axis(x):
                 x = jnp.expand_dims(x, axis=1)
@@ -390,96 +327,93 @@ def make_ppo_selfplay(
                 onehot = jax.nn.one_hot(
                     player_t, num_players, dtype=value.dtype)
                 onehot = _expand_to_player(onehot, next_value)
-                next_value_sel = jnp.sum(next_value * onehot, axis=1)
-                adv_next_sel = jnp.sum(adv_next * onehot, axis=1)
+                value_exp = _expand_player_axis(value)
+                value_exp = _expand_to_player(value_exp, next_value)
+                value_all = jnp.where(
+                    onehot.astype(jnp.bool_), value_exp, next_value
+                )
+                discount = onehot * params.discount + (1.0 - onehot)
 
                 delta = (
                     reward
-                    + params.discount
-                    * next_value_sel
+                    + discount
+                    * next_value
                     * not_done
-                    - value
+                    - value_all
                 )
                 adv = (
                     delta
-                    + params.discount
+                    + discount
                     * params.gae_lambda
                     * not_done
-                    * adv_next_sel
+                    * adv_next
                 )
 
-                value_exp = _expand_player_axis(value)
-                value_exp = _expand_to_player(value_exp, next_value)
-                adv_exp = _expand_player_axis(adv)
-                adv_exp = _expand_to_player(adv_exp, adv_next)
-                next_value = jnp.where(
-                    onehot.astype(jnp.bool_), value_exp, next_value)
-                adv_next = jnp.where(
-                    onehot.astype(jnp.bool_), adv_exp, adv_next)
-                return (next_value, adv_next), adv
+                next_value = value_all
+                adv_next = adv
+                adv_sel = jnp.sum(adv * onehot, axis=1)
+                return (next_value, adv_next), adv_sel
 
             init_carry = _init_player_carry(last_value, player)
             (_, _), advantages = jax.lax.scan(
                 gae_step,
                 init_carry,
-                (traj_reward, traj_value, traj_done, traj_player),
+                (traj_env_reward, traj_value, traj_done, traj_player),
                 reverse=True,
             )
 
             returns = advantages + traj_value
-            raw_advantages = advantages
-
-            stats = {
-                "adv_mean": jnp.mean(raw_advantages),
-                "reward_mean": jnp.mean(traj_reward),
-                "entropy_mean": jnp.mean(traj_entropy),
-                "terminal_steps": jnp.sum(
-                    traj_done_env.astype(jnp.int32)
-                ),
-                "terminal_envs": jnp.sum(
-                    jnp.any(traj_done_env, axis=0)
-                ),
-                "draw_steps": jnp.sum(
-                    (traj_done_env & (traj_reward == 0))
-                    .astype(jnp.int32)
-                ),
-            }
-            onehot = jax.nn.one_hot(traj_player, num_players, dtype=jnp.float32)
-            reward_exp = traj_reward[..., None]
-            per_player_sum = jnp.sum(reward_exp * onehot, axis=0)
-            per_player_mean = jnp.mean(per_player_sum, axis=0)
-            stats["return_mean_per_player"] = per_player_mean
-            if num_players >= 2:
-                stats["return_mean_p0"] = per_player_mean[0]
-                stats["return_mean_p1"] = per_player_mean[1]
-
-            if isinstance(traj_obs, dict) and "phase" in traj_obs:
-                phase = traj_obs["phase"]
-                challenge_mask = (phase == 1) & (traj_action == 1)
-                challenge_count = jnp.sum(challenge_mask.astype(jnp.int32))
-                challenge_wins = jnp.sum(jnp.where(
-                    challenge_mask, traj_reward > 0, False).astype(jnp.int32))
-                challenge_losses = jnp.sum(jnp.where(
-                    challenge_mask, traj_reward < 0, False).astype(jnp.int32)
-                )
-                stats["challenge_count"] = challenge_count
-                stats["challenge_win_count"] = challenge_wins
-                stats["challenge_loss_count"] = challenge_losses
+            
+            adv_mean = jnp.mean(advantages)
+            adv_std = jnp.std(advantages)
 
             term_mask = traj_done_env
             term_count = jnp.maximum(jnp.sum(term_mask), 1.0)
             term_env_rewards = jnp.where(
                 term_mask[..., None], traj_env_reward, 0.0
             )
-            stats["episode_return_mean"] = (
-                jnp.sum(term_env_rewards) / term_count
+
+            def _episode_length_mean(done_flags):
+                def step(carry, done_t):
+                    lengths, sum_lengths, count = carry
+                    lengths = lengths + 1
+                    done_i = done_t.astype(jnp.int32)
+                    sum_lengths = sum_lengths + lengths * done_i
+                    count = count + done_i
+                    lengths = jnp.where(done_t, 0, lengths)
+                    return (lengths, sum_lengths, count), None
+
+                init_lengths = jnp.zeros(
+                    (done_flags.shape[1],), dtype=jnp.int32
+                )
+                init_sum = jnp.zeros_like(init_lengths)
+                init_count = jnp.zeros_like(init_lengths)
+                (lengths, sum_lengths, count), _ = jax.lax.scan(
+                    step,
+                    (init_lengths, init_sum, init_count),
+                    done_flags,
+                )
+                total_sum = jnp.sum(sum_lengths)
+                total_count = jnp.sum(count)
+                return total_sum / jnp.maximum(total_count, 1)
+
+            terminal_steps = jnp.sum(traj_done_env.astype(jnp.int32))
+            terminal_envs = jnp.sum(jnp.any(traj_done_env, axis=0))
+            episode_return_mean = (
+                jnp.sum(term_env_rewards, axis=(0, 1)) / term_count
             )
-            stats["episode_return_mean_p0"] = (
-                jnp.sum(term_env_rewards[..., 0]) / term_count
-            )
-            if num_players > 1:
-                stats["episode_return_mean_p1"] = (
-                    jnp.sum(term_env_rewards[..., 1]) / term_count
+            episode_length_mean = _episode_length_mean(traj_done_env)
+
+            stats = {
+                "adv_mean": adv_mean,
+                "adv_std": adv_std,
+                "terminal_steps": terminal_steps,
+                "terminal_envs": terminal_envs,
+                "episode_length_mean": episode_length_mean,
+            }
+            for player_idx in range(num_players):
+                stats[f"episode_return_mean_p{player_idx}"] = (
+                    episode_return_mean[player_idx]
                 )
 
             def normalize_adv(adv):
@@ -540,16 +474,29 @@ def make_ppo_selfplay(
                         + params.value_coef * jnp.mean(value_loss)
                         + params.entropy_coef * jnp.mean(entropy_loss)
                     )
-                    return loss
+                    aux = (
+                        jnp.mean(policy_loss),
+                        jnp.mean(value_loss),
+                        jnp.mean(entropy),
+                    )
+                    return loss, aux
 
-                loss, grad = jax.value_and_grad(loss_fn)(model_state)
+                (loss, aux), grad = jax.value_and_grad(
+                    loss_fn, has_aux=True
+                )(model_state)
                 model_state, optim_state = optimizer.optimize(
                     key_batch,
                     grad,
                     model_state,
                     optim_state,
                 )
-                return (model_state, optim_state), loss
+                policy_loss, value_loss, entropy = aux
+                return (model_state, optim_state), (
+                    loss,
+                    policy_loss,
+                    value_loss,
+                    entropy,
+                )
 
             def train_epoch(model_optim, key_epoch):
                 shuffle_key, batch_key = jrng.split(key_epoch)
@@ -568,6 +515,11 @@ def make_ppo_selfplay(
             (model_state, optim_state), losses = jax.lax.scan(
                 train_epoch, (state.model_state, state.optim_state), epoch_keys
             )
+            loss_values, policy_losses, value_losses, entropies = losses
+            stats["loss_mean"] = jnp.mean(loss_values)
+            stats["policy_loss_mean"] = jnp.mean(policy_losses)
+            stats["value_loss_mean"] = jnp.mean(value_losses)
+            stats["entropy_mean"] = jnp.mean(entropies)
 
             next_state = state.replace(
                 env_state=env_state,
@@ -578,6 +530,6 @@ def make_ppo_selfplay(
                 memory=memory,
                 optim_state=optim_state,
             )
-            return next_state, losses, stats
+            return next_state, stats
 
     return PPOSelfPlay

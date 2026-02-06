@@ -97,59 +97,25 @@ def _obs_for_player(obs, player):
     return jax.tree.map(lambda x: x[:, player], obs)
 
 
-def _make_report(state, losses, stats=None):
-    loss = jnp.mean(losses)
-    if stats is None:
-        done = state.done.astype(jnp.int32)
-        done_count = jnp.sum(done)
-        winner = state.env_state.winner
-        draw = (done == 1) & (winner < 0)
-        draw_count = jnp.sum(draw)
-    else:
-        done_count = stats["terminal_steps"]
-        draw_count = stats.get("draw_steps", jnp.int32(0))
+def _make_report(state, stats):
+    loss = stats.get("loss_mean", 0.0)
     report = {
         "loss_mean": loss,
-        "done_count": done_count,
-        "draw_count": draw_count,
+        "stats": stats,
     }
-    if stats is not None:
-        report.update(stats)
     return report
 
 
 def _log(key, epoch, state, reports):
     loss = float(jnp.mean(jax.device_get(reports["loss_mean"])))
-    done_count = int(jnp.sum(jax.device_get(reports["done_count"])))
-    draw_count = int(jnp.sum(jax.device_get(reports["draw_count"])))
-    adv_active = float(jnp.mean(jax.device_get(
-        reports["adv_active_mean"]
-    )))
-    adv_inactive = float(jnp.mean(jax.device_get(
-        reports["adv_inactive_mean"]
-    )))
-    reward_mean = float(jnp.mean(jax.device_get(
-        reports["reward_mean"]
-    )))
-    reward_active = float(jnp.mean(jax.device_get(
-        reports["reward_active_mean"]
-    )))
-    terminal_steps = int(jnp.sum(jax.device_get(
-        reports["terminal_steps"]
-    )))
-    terminal_envs = int(jnp.sum(jax.device_get(
-        reports["terminal_envs"]
-    )))
-    print(
-        f"epoch {epoch} loss_mean {loss:.6f} "
-        f"done {done_count} draws {draw_count} "
-        f"adv_active {adv_active:.4f} "
-        f"adv_inactive {adv_inactive:.4f} "
-        f"reward {reward_mean:.4f} "
-        f"reward_active {reward_active:.4f} "
-        f"terminal_steps {terminal_steps} "
-        f"terminal_envs {terminal_envs}"
-    )
+    print(f"epoch {epoch} loss_mean {loss:.6f}")
+    stats = reports.get("stats")
+    if stats:
+        for key in sorted(stats.keys()):
+            value = jax.device_get(stats[key])
+            if hasattr(value, "shape") and value.shape == ():
+                value = value.item()
+            print(f"  {key} {value}")
 
 
 def _optimal_action(pile):
