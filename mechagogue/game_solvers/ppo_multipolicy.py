@@ -299,6 +299,41 @@ def make_ppo_multipolicy(
                 traj_policy_id,
             ) = rollout_data
 
+            def _episode_return_stats(reward, done):
+                reward = reward.astype(jnp.float32)
+                done = done.astype(jnp.float32)
+
+                def step(carry, inputs):
+                    running, total, count = carry
+                    r_t, d_t = inputs
+                    running = running + r_t
+                    done_mask = d_t[:, None]
+                    total = total + jnp.sum(running * done_mask, axis=0)
+                    count = count + jnp.sum(done_mask, axis=0)
+                    running = jnp.where(
+                        done_mask.astype(jnp.bool_),
+                        jnp.zeros_like(running),
+                        running,
+                    )
+                    return (running, total, count), None
+
+                init_running = jnp.zeros(
+                    (params.parallel_envs, num_players), dtype=reward.dtype
+                )
+                init_total = jnp.zeros((num_players,), dtype=reward.dtype)
+                init_count = jnp.zeros((num_players,), dtype=reward.dtype)
+                (_, total, count), _ = jax.lax.scan(
+                    step,
+                    (init_running, init_total, init_count),
+                    (reward, done),
+                )
+                mean = total / jnp.maximum(count, 1.0)
+                return total, count, mean
+
+            ep_return_total, ep_return_count, ep_return_mean = (
+                _episode_return_stats(traj_env_reward, traj_done_env)
+            )
+
             if has_memory:
                 last_value = policies[0].value(
                     obs,
@@ -399,7 +434,7 @@ def make_ppo_multipolicy(
                 traj_policy_id,
             )
             dataset = ravel_tree(dataset, 0, 2)
-
+            
             def train_epoch_for_policy(i, model_optim, key_epoch):
                 shuffle_key, batch_key = jrng.split(key_epoch)
                 shuffled = shuffle_tree(shuffle_key, dataset)
@@ -525,6 +560,10 @@ def make_ppo_multipolicy(
                 stats[f"policy_loss_mean_p{i}"] = stats_vals[1]
                 stats[f"value_loss_mean_p{i}"] = stats_vals[2]
                 stats[f"entropy_mean_p{i}"] = stats_vals[3]
+            for i in range(num_players):
+                stats[f"raw_return_mean_p{i}"] = ep_return_mean[i]
+                stats[f"raw_return_sum_p{i}"] = ep_return_total[i]
+                stats[f"raw_return_count_p{i}"] = ep_return_count[i]
 
             next_state = state.replace(
                 env_state=env_state,
