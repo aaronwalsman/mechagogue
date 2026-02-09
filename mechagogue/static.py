@@ -10,6 +10,7 @@ import itertools
 import argparse
 from typing import Any
 import dataclasses
+import pprint
 from dataclasses import dataclass, fields, is_dataclass
 
 import jax
@@ -57,6 +58,11 @@ def static_data(cls):
     
     def override_descendants(obj):
         return obj.override_children(recurse=True)
+
+    def _pretty_repr(obj):
+        payload = dataclasses.asdict(obj)
+        formatted = pprint.pformat(payload, sort_dicts=False)
+        return f"{obj.__class__.__name__}({formatted})"
     
     cls.STATIC_DATA = True
     cls.tree_flatten = tree_flatten
@@ -64,6 +70,10 @@ def static_data(cls):
     cls.replace = replace
     cls.override_children = override_children
     cls.override_descendants = override_descendants
+    if "__repr__" not in cls.__dict__:
+        cls.__repr__ = _pretty_repr
+    if "__str__" not in cls.__dict__:
+        cls.__str__ = _pretty_repr
     
     jax.tree_util.register_pytree_node_class(cls)
 

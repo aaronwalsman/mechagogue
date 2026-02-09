@@ -14,6 +14,7 @@ import jax
 import jax.numpy as jnp
 import jax.random as jrng
 
+from mechagogue.nn.distributions import categorical
 from mechagogue.game_solvers.wrappers import vectorize_aec
 from mechagogue.optim.optimizer import standardize_optimizer
 from mechagogue.static import static_data, static_functions
@@ -26,8 +27,10 @@ class MultiPPOParams:
     parallel_envs: int = 64
     rollout_steps: int = 256
     training_epochs: int = 4
-    minibatch_size: int = 1024
-    # minibatch_size should divide rollout_steps * parallel_envs
+    num_minibatches: int = 4
+    # num_minibatches should divide rollout_steps * parallel_envs
+    sequence_len: int = 1
+    # sequence_len should divide rollout_steps when using recurrence
 
     discount: float = 0.99
     gae_lambda: float = 0.95
@@ -104,21 +107,56 @@ def make_ppo_multipolicy(
         raise ValueError("optimizers length must match policies length.")
 
     policies = [_standardize_policy(p) for p in policies]
-    optimizers = [standardize_optimizer(o) for o in optimizers]
 
     policy_assignment = jnp.asarray(policy_assignment, dtype=jnp.int32)
     if policy_assignment.shape != (num_players,):
         raise ValueError("policy_assignment must have shape (num_players,).")
     if train_mask is None:
-        train_mask = jnp.ones((num_policies,), dtype=jnp.bool_)
+        train_mask_tuple = tuple(True for _ in range(num_policies))
     else:
-        train_mask = jnp.asarray(train_mask, dtype=jnp.bool_)
-        if train_mask.shape != (num_policies,):
+        if not isinstance(train_mask, (list, tuple)):
+            raise ValueError(
+                "train_mask must be a Python list/tuple of bools."
+            )
+        train_mask_tuple = tuple(bool(x) for x in train_mask)
+        if len(train_mask_tuple) != num_policies:
             raise ValueError("train_mask must have shape (num_policies,).")
+    train_mask = jnp.asarray(train_mask_tuple, dtype=jnp.bool_)
 
     has_memory = hasattr(policies[0], "init_memory")
     if any(hasattr(p, "init_memory") != has_memory for p in policies):
         raise ValueError("All policies must agree on memory usage.")
+    if params.sequence_len <= 0:
+        raise ValueError("sequence_len must be positive.")
+    if params.rollout_steps % params.sequence_len != 0:
+        raise ValueError("sequence_len must divide rollout_steps.")
+    if has_memory and params.sequence_len > 1:
+        for i in range(len(policies)):
+            if train_mask_tuple[i]:
+                if not hasattr(policies[i], "logits"):
+                    raise ValueError(
+                        "sequence_len>1 requires policy.logits for all "
+                        "trainable recurrent policies."
+                    )
+
+    rollout_batch = params.rollout_steps * params.parallel_envs
+    if params.num_minibatches <= 0:
+        raise ValueError("num_minibatches must be positive.")
+    if rollout_batch % params.num_minibatches != 0:
+        raise ValueError(
+            "num_minibatches must divide rollout_steps * parallel_envs."
+        )
+    minibatch_size = rollout_batch // params.num_minibatches
+
+    optimizers_std = [None] * num_policies
+    for i in range(num_policies):
+        if train_mask_tuple[i]:
+            if optimizers[i] is None:
+                raise ValueError(
+                    "optimizer is None for a trainable policy. "
+                    "Either provide an optimizer or set train_mask[i]=False."
+                )
+            optimizers_std[i] = standardize_optimizer(optimizers[i])
 
     def _gather_player(tree, player):
         def _leaf(leaf):
@@ -127,6 +165,15 @@ def make_ppo_multipolicy(
                 idx = jnp.expand_dims(idx, axis=-1)
             gathered = jnp.take_along_axis(leaf, idx, axis=1)
             return jnp.squeeze(gathered, axis=1)
+        return jax.tree.map(_leaf, tree)
+
+    def _gather_player_time(tree, player):
+        def _leaf(leaf):
+            idx = jnp.expand_dims(player, axis=-1)
+            while idx.ndim < leaf.ndim:
+                idx = jnp.expand_dims(idx, axis=-1)
+            gathered = jnp.take_along_axis(leaf, idx, axis=2)
+            return jnp.squeeze(gathered, axis=2)
         return jax.tree.map(_leaf, tree)
 
     def _set_player(tree, player, value):
@@ -173,10 +220,17 @@ def make_ppo_multipolicy(
                 memory = None
 
             optim_keys = jrng.split(optim_key, num_policies)
-            optim_states = tuple(
-                optimizers[i].init(optim_keys[i], model_states[i])
-                for i in range(num_policies)
-            )
+            optim_states = []
+            for i in range(num_policies):
+                if train_mask_tuple[i]:
+                    optim_states.append(
+                        optimizers_std[i].init(
+                            optim_keys[i], model_states[i]
+                        )
+                    )
+                else:
+                    optim_states.append(None)
+            optim_states = tuple(optim_states)
             return MultiPPOState(
                 env_state,
                 obs,
@@ -195,7 +249,8 @@ def make_ppo_multipolicy(
                 policy_id = policy_assignment[player]
                 policy_keys = jrng.split(policy_key, num_policies)
 
-                memory_sel = _gather_player(memory, player) if has_memory else None
+                memory_sel = (
+                    _gather_player(memory, player) if has_memory else None)
 
                 def _act_for_policy(i):
                     if has_memory:
@@ -261,7 +316,7 @@ def make_ppo_multipolicy(
                     reward,
                     next_done,
                     player,
-                    memory_sel if has_memory else None,
+                    memory if has_memory else None,
                     policy_id,
                 )
                 return (
@@ -295,9 +350,19 @@ def make_ppo_multipolicy(
                 traj_env_reward,
                 traj_done_env,
                 traj_player,
-                traj_memory,
+                traj_memory_all,
                 traj_policy_id,
             ) = rollout_data
+            expected_policy_id = policy_assignment[traj_player]
+            if has_memory:
+                if traj_memory_all.shape[0] == traj_player.shape[0]:
+                    traj_memory = _gather_player_time(
+                        traj_memory_all, traj_player
+                    )
+                else:
+                    traj_memory = _gather_player(traj_memory_all, traj_player)
+            else:
+                traj_memory = None
 
             def _episode_return_stats(reward, done):
                 reward = reward.astype(jnp.float32)
@@ -416,84 +481,298 @@ def make_ppo_multipolicy(
             )
 
             returns = advantages + traj_value
+            advantages_raw = advantages
 
-            def normalize_adv(adv):
-                mean = jnp.mean(adv)
-                var = jnp.mean((adv - mean) ** 2)
-                return (adv - mean) / (jnp.sqrt(var) + params.epsilon)
+            def normalize_adv_per_policy(adv, policy_id):
+                adv_flat = ravel_tree(adv, 0, 2)
+                pid_flat = ravel_tree(policy_id, 0, 2)
+                adv_all = adv_flat
+                pid_all = pid_flat
 
-            advantages = normalize_adv(advantages)
+                def per_policy(i):
+                    mask = (pid_all == jnp.int32(i)).astype(adv_all.dtype)
+                    denom = jnp.maximum(jnp.sum(mask), 1.0)
+                    mean = jnp.sum(adv_all * mask) / denom
+                    var = jnp.sum(((adv_all - mean) ** 2) * mask) / denom
+                    return mean, var
 
-            dataset = (
-                traj_obs,
-                traj_action,
-                traj_logp,
-                advantages,
-                returns,
-                traj_memory,
-                traj_policy_id,
+                means, vars_ = jax.vmap(per_policy)(jnp.arange(num_policies))
+                means = means[pid_flat]
+                vars_ = vars_[pid_flat]
+                normalized = (adv_flat - means) / (
+                    jnp.sqrt(vars_) + params.epsilon
+                )
+                return normalized.reshape(adv.shape)
+
+            advantages = normalize_adv_per_policy(advantages, traj_policy_id)
+
+            def _policy_stats(values, policy_id):
+                values_flat = ravel_tree(values, 0, 2)
+                pid_flat = ravel_tree(policy_id, 0, 2)
+
+                def per_policy(i):
+                    mask = (pid_flat == jnp.int32(i)).astype(values_flat.dtype)
+                    denom = jnp.maximum(jnp.sum(mask), 1.0)
+                    mean = jnp.sum(values_flat * mask) / denom
+                    var = jnp.sum(((values_flat - mean) ** 2) * mask) / denom
+                    std = jnp.sqrt(var + params.epsilon)
+                    return mean, std
+
+                return jax.vmap(per_policy)(jnp.arange(num_policies))
+
+            trainable_indices = [
+                i for i in range(num_policies) if train_mask_tuple[i]
+            ]
+            adv_raw_means, adv_raw_stds = _policy_stats(
+                advantages_raw, traj_policy_id
             )
-            dataset = ravel_tree(dataset, 0, 2)
+            ret_means, ret_stds = _policy_stats(returns, traj_policy_id)
+            val_means, val_stds = _policy_stats(traj_value, traj_policy_id)
+
+            if has_memory and params.sequence_len > 1:
+                seq_len = params.sequence_len
+                num_envs = params.parallel_envs
+                num_seq = num_envs * (params.rollout_steps // seq_len)
+
+                def _to_sequences(x):
+                    x = jnp.transpose(
+                        x, (1, 0) + tuple(range(2, x.ndim))
+                    )
+                    new_shape = (num_envs, -1, seq_len) + x.shape[2:]
+                    x = x.reshape(new_shape)
+                    x = x.reshape((num_seq, seq_len) + x.shape[3:])
+                    return x
+
+                seq_obs = jax.tree.map(_to_sequences, traj_obs)
+                seq_action = _to_sequences(traj_action)
+                seq_logp = _to_sequences(traj_logp)
+                seq_adv = _to_sequences(advantages)
+                seq_ret = _to_sequences(returns)
+                seq_done = _to_sequences(traj_done_env)
+                seq_pid = _to_sequences(traj_policy_id)
+                seq_mem_all = jax.tree.map(_to_sequences, traj_memory_all)
+
+                dataset = (
+                    seq_obs,
+                    seq_action,
+                    seq_logp,
+                    seq_adv,
+                    seq_ret,
+                    seq_done,
+                    seq_pid,
+                    seq_mem_all,
+                )
+            else:
+                dataset = (
+                    traj_obs,
+                    traj_action,
+                    traj_logp,
+                    advantages,
+                    returns,
+                    traj_memory,
+                    traj_policy_id,
+                )
+                dataset = ravel_tree(dataset, 0, 2)
             
             def train_epoch_for_policy(i, model_optim, key_epoch):
                 shuffle_key, batch_key = jrng.split(key_epoch)
-                shuffled = shuffle_tree(shuffle_key, dataset)
-                batches = batch_tree(shuffled, params.minibatch_size)
-                num_batches = tree_len(batches, axis=0)
+                if has_memory and params.sequence_len > 1:
+                    shuffled = shuffle_tree(shuffle_key, dataset)
+                    total_seq = tree_len(shuffled, axis=0)
+                    seq_batch = total_seq // params.num_minibatches
+                    batches = batch_tree(shuffled, seq_batch)
+                    num_batches = tree_len(batches, axis=0)
+                else:
+                    shuffled = shuffle_tree(shuffle_key, dataset)
+                    batches = batch_tree(shuffled, minibatch_size)
+                    num_batches = tree_len(batches, axis=0)
                 batch_keys = jrng.split(batch_key, num_batches)
 
                 def train_batch(model_optim, key_batch, batch):
                     model_state, optim_state = model_optim
-                    (
-                        obs_b,
-                        act_b,
-                        logp_b,
-                        adv_b,
-                        ret_b,
-                        mem_b,
-                        pid_b,
-                    ) = batch
-
-                    mask = (pid_b == jnp.int32(i)).astype(jnp.float32)
-                    denom = jnp.maximum(jnp.sum(mask), 1.0)
+                    if has_memory and params.sequence_len > 1:
+                        (
+                            obs_b,
+                            act_b,
+                            logp_b,
+                            adv_b,
+                            ret_b,
+                            done_b,
+                            pid_b,
+                            mem_all_b,
+                        ) = batch
+                    else:
+                        (
+                            obs_b,
+                            act_b,
+                            logp_b,
+                            adv_b,
+                            ret_b,
+                            mem_b,
+                            pid_b,
+                        ) = batch
 
                     def loss_fn(model_state):
-                        if has_memory:
-                            new_logp, value, entropy = policies[i].evaluate(
-                                obs_b,
-                                act_b,
-                                model_state,
-                                mem_b,
-                            )
-                        else:
-                            new_logp, value, entropy = policies[i].evaluate(
-                                obs_b,
-                                act_b,
-                                model_state,
-                            )
-                        ratio = jnp.exp(new_logp - logp_b)
-                        clipped = jnp.clip(
-                            ratio,
-                            1.0 - params.clip_eps,
-                            1.0 + params.clip_eps,
-                        )
-                        policy_loss = -jnp.minimum(ratio * adv_b, clipped * adv_b)
-                        value_loss = (ret_b - value) ** 2
-                        entropy_loss = -entropy
+                        if has_memory and params.sequence_len > 1:
+                            def _swap_time_batch(x):
+                                return jnp.swapaxes(x, 0, 1)
 
-                        loss = (
-                            jnp.sum(policy_loss * mask) / denom
-                            + params.value_coef
-                            * (jnp.sum(value_loss * mask) / denom)
-                            + params.entropy_coef
-                            * (jnp.sum(entropy_loss * mask) / denom)
-                        )
-                        aux = (
-                            jnp.sum(policy_loss * mask) / denom,
-                            jnp.sum(value_loss * mask) / denom,
-                            jnp.sum(entropy * mask) / denom,
-                        )
-                        return loss, aux
+                            obs_t = jax.tree.map(_swap_time_batch, obs_b)
+                            act_t = _swap_time_batch(act_b)
+                            logp_t = _swap_time_batch(logp_b)
+                            adv_t = _swap_time_batch(adv_b)
+                            ret_t = _swap_time_batch(ret_b)
+                            done_t = _swap_time_batch(done_b)
+                            pid_t = _swap_time_batch(pid_b)
+                            mem_all_t = jax.tree.map(_swap_time_batch, mem_all_b)
+
+                            init_mem_i = jax.tree.map(
+                                lambda x: x[:, 0, i],
+                                mem_all_b,
+                            )
+                            init_reset = policies[i].init_memory(jrng.key(0))
+
+                            def step(carry, inputs):
+                                memory_i = carry
+                                (
+                                    obs_s,
+                                    act_s,
+                                    logp_s,
+                                    adv_s,
+                                    ret_s,
+                                    done_s,
+                                    pid_s,
+                                ) = inputs
+
+                                logits, value, next_memory_i, mask = (
+                                    policies[i].logits(
+                                        obs_s, model_state, memory_i
+                                    )
+                                )
+                                masked_logits = jnp.where(mask, logits, -1e9)
+                                dist = categorical(masked_logits)
+                                new_logp = dist.logp(act_s)
+                                entropy = dist.entropy()
+
+                                ratio = jnp.exp(new_logp - logp_s)
+                                clipped = jnp.clip(
+                                    ratio,
+                                    1.0 - params.clip_eps,
+                                    1.0 + params.clip_eps,
+                                )
+                                policy_loss = -jnp.minimum(
+                                    ratio * adv_s, clipped * adv_s
+                                )
+                                value_loss = (ret_s - value) ** 2
+                                entropy_loss = -entropy
+
+                                mask_pid = (pid_s == jnp.int32(i)).astype(
+                                    jnp.float32
+                                )
+                                done_s = done_s.astype(jnp.bool_)
+
+                                def _apply_mask(mask, x_keep, x_update):
+                                    while mask.ndim < x_keep.ndim:
+                                        mask = jnp.expand_dims(mask, axis=-1)
+                                    return jnp.where(mask, x_update, x_keep)
+
+                                reset_mem = jax.tree.map(
+                                    lambda x: jnp.broadcast_to(
+                                        x, next_memory_i.shape
+                                    ),
+                                    init_reset,
+                                )
+                                memory_i = jax.tree.map(
+                                    lambda nm, mi: _apply_mask(mask_pid, mi, nm),
+                                    next_memory_i,
+                                    memory_i,
+                                )
+                                memory_i = jax.tree.map(
+                                    lambda nm, rm: _select_by_done(
+                                        done_s, nm, rm
+                                    ),
+                                    memory_i,
+                                    reset_mem,
+                                )
+                                return memory_i, (
+                                    policy_loss,
+                                    value_loss,
+                                    entropy,
+                                    mask_pid,
+                                )
+
+                            init_mem_i = jax.tree.map(
+                                lambda x: x[:, 0, i],
+                                mem_all_b,
+                            )
+                            _, losses = jax.lax.scan(
+                                step,
+                                init_mem_i,
+                                (
+                                    obs_t,
+                                    act_t,
+                                    logp_t,
+                                    adv_t,
+                                    ret_t,
+                                    done_t,
+                                    pid_t,
+                                ),
+                            )
+                            policy_loss, value_loss, entropy, mask_pid = losses
+                            denom = jnp.maximum(jnp.sum(mask_pid), 1.0)
+                            loss = (
+                                jnp.sum(policy_loss * mask_pid) / denom
+                                + params.value_coef
+                                * (jnp.sum(value_loss * mask_pid) / denom)
+                                + params.entropy_coef
+                                * (jnp.sum(-entropy * mask_pid) / denom)
+                            )
+                            aux = (
+                                jnp.sum(policy_loss * mask_pid) / denom,
+                                jnp.sum(value_loss * mask_pid) / denom,
+                                jnp.sum(entropy * mask_pid) / denom,
+                            )
+                            return loss, aux
+                        else:
+                            mask = (pid_b == jnp.int32(i)).astype(jnp.float32)
+                            denom = jnp.maximum(jnp.sum(mask), 1.0)
+                            if has_memory:
+                                new_logp, value, entropy = policies[i].evaluate(
+                                    obs_b,
+                                    act_b,
+                                    model_state,
+                                    mem_b,
+                                )
+                            else:
+                                new_logp, value, entropy = policies[i].evaluate(
+                                    obs_b,
+                                    act_b,
+                                    model_state,
+                                )
+                            ratio = jnp.exp(new_logp - logp_b)
+                            clipped = jnp.clip(
+                                ratio,
+                                1.0 - params.clip_eps,
+                                1.0 + params.clip_eps,
+                            )
+                            policy_loss = -jnp.minimum(
+                                ratio * adv_b, clipped * adv_b)
+                            value_loss = (ret_b - value) ** 2
+                            entropy_loss = -entropy
+
+                            loss = (
+                                jnp.sum(policy_loss * mask) / denom
+                                + params.value_coef
+                                * (jnp.sum(value_loss * mask) / denom)
+                                + params.entropy_coef
+                                * (jnp.sum(entropy_loss * mask) / denom)
+                            )
+                            aux = (
+                                jnp.sum(policy_loss * mask) / denom,
+                                jnp.sum(value_loss * mask) / denom,
+                                jnp.sum(entropy * mask) / denom,
+                            )
+                            return loss, aux
 
                     (loss, aux), grad = jax.value_and_grad(
                         loss_fn, has_aux=True
@@ -525,41 +804,32 @@ def make_ppo_multipolicy(
             optim_states = list(state.optim_states)
             stats = {}
 
-            for i in range(num_policies):
-                do_train = jnp.bool_(train_mask[i])
-
-                def _train(mo):
-                    (mo, losses) = jax.lax.scan(
-                        lambda m, ek: train_epoch_for_policy(i, m, ek),
-                        mo,
-                        epoch_keys,
-                    )
-                    loss_values, policy_losses, value_losses, entropies = losses
-                    stats_vals = jnp.stack(
-                        [
-                        jnp.mean(loss_values),
-                        jnp.mean(policy_losses),
-                        jnp.mean(value_losses),
-                        jnp.mean(entropies),
-                        ],
-                        axis=0,
-                    )
-                    return mo, stats_vals
-
-                def _skip(mo):
-                    zeros = jnp.zeros((4,), dtype=jnp.float32)
-                    return mo, zeros
-
-                (model_states[i], optim_states[i]), stats_vals = jax.lax.cond(
-                    do_train,
-                    _train,
-                    _skip,
-                    operand=(model_states[i], optim_states[i]),
+            for i in trainable_indices:
+                (model_states[i], optim_states[i]), losses = jax.lax.scan(
+                    lambda m, ek: train_epoch_for_policy(i, m, ek),
+                    (model_states[i], optim_states[i]),
+                    epoch_keys,
+                )
+                loss_values, policy_losses, value_losses, entropies = losses
+                stats_vals = jnp.stack(
+                    [
+                    jnp.mean(loss_values),
+                    jnp.mean(policy_losses),
+                    jnp.mean(value_losses),
+                    jnp.mean(entropies),
+                    ],
+                    axis=0,
                 )
                 stats[f"loss_mean_p{i}"] = stats_vals[0]
                 stats[f"policy_loss_mean_p{i}"] = stats_vals[1]
                 stats[f"value_loss_mean_p{i}"] = stats_vals[2]
                 stats[f"entropy_mean_p{i}"] = stats_vals[3]
+                stats[f"adv_raw_mean_p{i}"] = adv_raw_means[i]
+                stats[f"adv_raw_std_p{i}"] = adv_raw_stds[i]
+                stats[f"ret_mean_p{i}"] = ret_means[i]
+                stats[f"ret_std_p{i}"] = ret_stds[i]
+                stats[f"value_mean_p{i}"] = val_means[i]
+                stats[f"value_std_p{i}"] = val_stds[i]
             for i in range(num_players):
                 stats[f"raw_return_mean_p{i}"] = ep_return_mean[i]
                 stats[f"raw_return_sum_p{i}"] = ep_return_total[i]
