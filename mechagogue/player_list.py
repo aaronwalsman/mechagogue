@@ -15,6 +15,7 @@ def anonymous_player_list(max_players):
     @static_data
     class AnonymousPlayerListState:
         players : jnp.array
+        capacity_reached : bool = False
     
     @static_functions
     class AnonymousPlayerList:
@@ -22,7 +23,7 @@ def anonymous_player_list(max_players):
         def init(initial_players):
             players = jnp.zeros((max_players,), dtype=jnp.bool)
             players[:initial_players] = True
-            return AnonymousPlayerListState(players)
+            return AnonymousPlayerListState(players, capacity_reached=False)
 
         def step(state, add, remove):
             
@@ -37,10 +38,16 @@ def anonymous_player_list(max_players):
             add_locations = jnp.where(
                 add_n_hot, available_locations, max_players)
             # - update the player mask
-            players = state.players.at[add_locations].set(True)
+            valid = add_locations < max_players
+            safe_locations = jnp.where(valid, add_locations, 0)
+            players = players.at[safe_locations].set(
+                jnp.where(valid, True, players[safe_locations]))
             
-            next_state = AnonymousPlayerListState(players)
-            return next_state, add_locations, players[add_locations]
+            available_count = jnp.sum(~state.players)
+            capacity_reached = add > available_count
+            next_state = AnonymousPlayerListState(players, capacity_reached)
+            added_players = jnp.where(valid, players[safe_locations], False)
+            return next_state, add_locations, added_players
         
         def active(state):
             return state.players
@@ -57,6 +64,7 @@ def identified_player_list(max_players):
     class IdentifiedPlayerListState:
         players : jnp.array
         next_new_player_id : int
+        capacity_reached : bool = False
     
     @static_functions
     class IdentifiedPlayerList:
@@ -67,7 +75,8 @@ def identified_player_list(max_players):
                 jnp.arange(initial_players))
             next_new_player_id = initial_players
             
-            return IdentifiedPlayerListState(players, next_new_player_id)
+            return IdentifiedPlayerListState(
+                players, next_new_player_id, capacity_reached=False)
         
         def step(state, remove, add):
             
@@ -85,13 +94,20 @@ def identified_player_list(max_players):
             new_player_ids = jnp.where(
                 add_n_hot, all_locations + state.next_new_player_id, -1)
             # - update the player ids
-            players = players.at[add_locations].set(new_player_ids)
+            valid = add_locations < max_players
+            safe_locations = jnp.where(valid, add_locations, 0)
+            players = players.at[safe_locations].set(
+                jnp.where(valid, new_player_ids, players[safe_locations]))
             
             # update the next_new_player_id
             next_new_player_id = state.next_new_player_id + n
             
-            next_state = IdentifiedPlayerState(players, next_new_player_id)
-            return next_state, add_locations, players[add_locations]
+            available_count = jnp.sum(players == -1)
+            capacity_reached = add > available_count
+            next_state = IdentifiedPlayerState(
+                players, next_new_player_id, capacity_reached)
+            added_players = jnp.where(valid, players[safe_locations], -1)
+            return next_state, add_locations, added_players
         
         def active(state):
             return state.players != -1
@@ -107,6 +123,7 @@ def birthday_player_list(max_players):
     class BirthdayPlayerListState:
         players : jnp.array
         current_time : int = 0
+        capacity_reached : bool = False
     
     @static_functions
     class BirthdayPlayerList:
@@ -116,7 +133,7 @@ def birthday_player_list(max_players):
             birthdays = jnp.where(n_hot, 0, -1)
             locations = jnp.where(n_hot, jnp.arange(max_players), -1)
             players = jnp.stack((birthdays, locations), axis=1)
-            return BirthdayPlayerListState(players)
+            return BirthdayPlayerListState(players, capacity_reached=False)
 
         def step(
             state : BirthdayPlayerListState,
@@ -139,12 +156,21 @@ def birthday_player_list(max_players):
             )
             add_locations = jnp.where(
                 jnp.arange(max_players) < add, available_locations, max_players)
+            available_count = jnp.sum(players[...,0] == -1)
             # - update the player birthdays and locations
-            players = players.at[add_locations,0].set(current_time)
-            players = players.at[add_locations,1].set(add_locations)
+            valid = add_locations < max_players
+            safe_locations = jnp.where(valid, add_locations, 0)
+            players = players.at[safe_locations,0].set(
+                jnp.where(valid, current_time, players[safe_locations,0]))
+            players = players.at[safe_locations,1].set(
+                jnp.where(valid, safe_locations, players[safe_locations,1]))
             
-            next_state = BirthdayPlayerListState(players, current_time)
-            return next_state, add_locations, players[add_locations]
+            capacity_reached = add > available_count
+            next_state = BirthdayPlayerListState(
+                players, current_time, capacity_reached)
+            added_players = jnp.where(
+                valid[:,None], players[safe_locations], -1)
+            return next_state, add_locations, added_players
         
         def active(state):
             return state.players[..., 0] != -1
@@ -153,6 +179,88 @@ def birthday_player_list(max_players):
             return state.players[locations]
     
     return BirthdayPlayerList
+
+def birthday_hometown_player_list(max_players, home_town=0, axis_name=None):
+
+    @static_data
+    class BirthdayHometownPlayerListState:
+        players : jnp.array
+        current_time : int = 0
+        home_town : int = 0
+        capacity_reached : bool = False
+
+    @static_functions
+    class BirthdayHometownPlayerList:
+        
+        def init(initial_players):
+            n_hot = jnp.arange(max_players) < initial_players
+            birthdays = jnp.where(n_hot, 0, -1)
+            locations = jnp.where(n_hot, jnp.arange(max_players), -1)
+            if axis_name is None:
+                home_town_value = jnp.array(home_town, dtype=jnp.int32)
+            else:
+                from jax import lax
+                home_town_value = lax.axis_index(axis_name)
+            home_towns = jnp.where(n_hot, home_town_value, -1)
+            birth_index = locations
+            players = jnp.stack(
+                (birthdays, birth_index, home_towns, locations), axis=1)
+            return BirthdayHometownPlayerListState(
+                players,
+                home_town=home_town_value,
+                capacity_reached=False,
+            )
+
+        def step(
+            state : BirthdayHometownPlayerListState,
+            remove : jnp.ndarray,
+            add : int,
+        ):
+            
+            # increment the current time
+            current_time = state.current_time + 1
+            
+            # remove
+            players = jnp.where(remove[:,None], -1, state.players)
+            
+            # add
+            # - find locations for the newly added players
+            available_locations, = jnp.nonzero(
+                (players[...,0] == -1),
+                size=max_players,
+                fill_value=max_players,
+            )
+            add_locations = jnp.where(
+                jnp.arange(max_players) < add, available_locations, max_players)
+            available_count = jnp.sum(players[...,0] == -1)
+            # - update the player birthdays and locations
+            valid = add_locations < max_players
+            safe_locations = jnp.where(valid, add_locations, 0)
+            players = players.at[safe_locations,0].set(
+                jnp.where(valid, current_time, players[safe_locations,0]))
+            # birth_index (column 1) is permanent; set only on birth
+            players = players.at[safe_locations,1].set(
+                jnp.where(valid, safe_locations, players[safe_locations,1]))
+            players = players.at[safe_locations,2].set(
+                jnp.where(valid, state.home_town, players[safe_locations,2]))
+            # location (column 3) is current physical slot
+            players = players.at[safe_locations,3].set(
+                jnp.where(valid, safe_locations, players[safe_locations,3]))
+            
+            capacity_reached = add > available_count
+            next_state = BirthdayHometownPlayerListState(
+                players, current_time, state.home_town, capacity_reached)
+            added_players = jnp.where(
+                valid[:,None], players[safe_locations], -1)
+            return next_state, add_locations, added_players
+        
+        def active(state):
+            return state.players[..., 0] != -1
+        
+        def locations_to_ids(state, locations):
+            return state.players[locations]
+    
+    return BirthdayHometownPlayerList
 
 def player_family_tree(
     player_list,
