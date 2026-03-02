@@ -19,6 +19,45 @@ def anonymous_player_list(max_players):
     
     @static_functions
     class AnonymousPlayerList:
+        def _assign_slots(available_mask, incoming_mask):
+            available_idx, = jnp.nonzero(
+                available_mask, size=max_players, fill_value=-1)
+            incoming_idx, = jnp.nonzero(
+                incoming_mask, size=max_players, fill_value=-1)
+            available_valid = available_idx >= 0
+            incoming_valid = incoming_idx >= 0
+            available_count = jnp.sum(available_valid)
+            incoming_count = jnp.sum(incoming_valid)
+            take = jnp.arange(max_players) < jnp.minimum(
+                available_count, incoming_count)
+            slot_idx = jnp.where(take, available_idx, -1)
+            source_idx = jnp.where(take, incoming_idx, -1)
+            capacity_reached = incoming_count > available_count
+            return slot_idx, source_idx, capacity_reached
+
+        def remove(state, remove):
+            players = state.players & ~remove
+            return AnonymousPlayerListState(
+                players,
+                capacity_reached=state.capacity_reached,
+            )
+
+        def place_payload(state, incoming_mask, incoming_players):
+            available_mask = ~state.players
+            slot_idx, source_idx, capacity_reached = (
+                AnonymousPlayerList._assign_slots(
+                    available_mask, incoming_mask)
+            )
+            valid = slot_idx >= 0
+            safe_slots = jnp.where(valid, slot_idx, 0)
+            players = state.players.at[safe_slots].set(
+                jnp.where(valid, True, state.players[safe_slots]))
+            added_players = jnp.where(valid, True, False)
+            next_state = AnonymousPlayerListState(
+                players,
+                capacity_reached=state.capacity_reached | capacity_reached,
+            )
+            return next_state, slot_idx, source_idx, added_players
     
         def init(initial_players):
             players = jnp.zeros((max_players,), dtype=jnp.bool)
@@ -31,22 +70,21 @@ def anonymous_player_list(max_players):
             players = state.players & ~remove
             
             # add
-            # - find space for the newly added players
-            available_locations, = jnp.nonzero(
-                state.players, size=max_players, fill_value=max_players)
-            add_n_hot = jnp.arange(max_players) < add
-            add_locations = jnp.where(
-                add_n_hot, available_locations, max_players)
-            # - update the player mask
-            valid = add_locations < max_players
-            safe_locations = jnp.where(valid, add_locations, 0)
-            players = players.at[safe_locations].set(
-                jnp.where(valid, True, players[safe_locations]))
+            available_mask = ~players
+            incoming_mask = jnp.arange(max_players) < add
+            slot_idx, source_idx, capacity_reached = (
+                AnonymousPlayerList._assign_slots(
+                    available_mask, incoming_mask)
+            )
+            valid = slot_idx >= 0
+            safe_slots = jnp.where(valid, slot_idx, 0)
+            players = players.at[safe_slots].set(
+                jnp.where(valid, True, players[safe_slots]))
             
-            available_count = jnp.sum(~state.players)
-            capacity_reached = add > available_count
-            next_state = AnonymousPlayerListState(players, capacity_reached)
-            added_players = jnp.where(valid, players[safe_locations], False)
+            add_locations = jnp.where(valid, slot_idx, max_players)
+            next_state = AnonymousPlayerListState(
+                players, capacity_reached)
+            added_players = jnp.where(valid, True, False)
             return next_state, add_locations, added_players
         
         def active(state):
@@ -68,6 +106,49 @@ def identified_player_list(max_players):
     
     @static_functions
     class IdentifiedPlayerList:
+        def _assign_slots(available_mask, incoming_mask):
+            available_idx, = jnp.nonzero(
+                available_mask, size=max_players, fill_value=-1)
+            incoming_idx, = jnp.nonzero(
+                incoming_mask, size=max_players, fill_value=-1)
+            available_valid = available_idx >= 0
+            incoming_valid = incoming_idx >= 0
+            available_count = jnp.sum(available_valid)
+            incoming_count = jnp.sum(incoming_valid)
+            take = jnp.arange(max_players) < jnp.minimum(
+                available_count, incoming_count)
+            slot_idx = jnp.where(take, available_idx, -1)
+            source_idx = jnp.where(take, incoming_idx, -1)
+            capacity_reached = incoming_count > available_count
+            return slot_idx, source_idx, capacity_reached
+
+        def remove(state, remove):
+            players = jnp.where(remove, -1, state.players)
+            return IdentifiedPlayerListState(
+                players,
+                state.next_new_player_id,
+                capacity_reached=state.capacity_reached,
+            )
+
+        def place_payload(state, incoming_mask, incoming_players):
+            available_mask = state.players == -1
+            slot_idx, source_idx, capacity_reached = (
+                IdentifiedPlayerList._assign_slots(
+                    available_mask, incoming_mask)
+            )
+            valid = slot_idx >= 0
+            safe_slots = jnp.where(valid, slot_idx, 0)
+            safe_src = jnp.where(valid, source_idx, 0)
+            placed = incoming_players[safe_src]
+            players = state.players.at[safe_slots].set(
+                jnp.where(valid, placed, state.players[safe_slots]))
+            added_players = jnp.where(valid, placed, -1)
+            next_state = IdentifiedPlayerListState(
+                players,
+                state.next_new_player_id,
+                capacity_reached=state.capacity_reached | capacity_reached,
+            )
+            return next_state, slot_idx, source_idx, added_players
         
         def init(initial_players):
             players = jnp.full((max_players,), -1, dtype=jnp.int32)
@@ -84,29 +165,27 @@ def identified_player_list(max_players):
             players = jnp.where(remove, -1, state.players)
             
             # add
-            # - find space for the newly added players
-            available_locations, = jnp.nonzero(
-                (players == -1), size=max_players, fill_value=max_players)
-            add_n_hot = jnp.arange(max_players) < add
-            add_locations = jnp.where(
-                add_n_hot, available_locations, max_players)
-            # - construct the new player ids 
-            new_player_ids = jnp.where(
-                add_n_hot, all_locations + state.next_new_player_id, -1)
-            # - update the player ids
-            valid = add_locations < max_players
-            safe_locations = jnp.where(valid, add_locations, 0)
-            players = players.at[safe_locations].set(
-                jnp.where(valid, new_player_ids, players[safe_locations]))
+            available_mask = players == -1
+            incoming_mask = jnp.arange(max_players) < add
+            slot_idx, source_idx, capacity_reached = (
+                IdentifiedPlayerList._assign_slots(
+                    available_mask, incoming_mask)
+            )
+            valid = slot_idx >= 0
+            safe_slots = jnp.where(valid, slot_idx, 0)
+            safe_src = jnp.where(valid, source_idx, 0)
+            new_player_ids = state.next_new_player_id + jnp.arange(max_players)
+            incoming_players = jnp.where(incoming_mask, new_player_ids, -1)
+            placed = incoming_players[safe_src]
+            players = players.at[safe_slots].set(
+                jnp.where(valid, placed, players[safe_slots]))
             
-            # update the next_new_player_id
-            next_new_player_id = state.next_new_player_id + n
+            next_new_player_id = state.next_new_player_id + add
             
-            available_count = jnp.sum(players == -1)
-            capacity_reached = add > available_count
-            next_state = IdentifiedPlayerState(
+            add_locations = jnp.where(valid, slot_idx, max_players)
+            next_state = IdentifiedPlayerListState(
                 players, next_new_player_id, capacity_reached)
-            added_players = jnp.where(valid, players[safe_locations], -1)
+            added_players = jnp.where(valid, placed, -1)
             return next_state, add_locations, added_players
         
         def active(state):
@@ -127,6 +206,50 @@ def birthday_player_list(max_players):
     
     @static_functions
     class BirthdayPlayerList:
+        def _assign_slots(available_mask, incoming_mask):
+            available_idx, = jnp.nonzero(
+                available_mask, size=max_players, fill_value=-1)
+            incoming_idx, = jnp.nonzero(
+                incoming_mask, size=max_players, fill_value=-1)
+            available_valid = available_idx >= 0
+            incoming_valid = incoming_idx >= 0
+            available_count = jnp.sum(available_valid)
+            incoming_count = jnp.sum(incoming_valid)
+            take = jnp.arange(max_players) < jnp.minimum(
+                available_count, incoming_count)
+            slot_idx = jnp.where(take, available_idx, -1)
+            source_idx = jnp.where(take, incoming_idx, -1)
+            capacity_reached = incoming_count > available_count
+            return slot_idx, source_idx, capacity_reached
+
+        def remove(state, remove):
+            players = jnp.where(remove[:, None], -1, state.players)
+            return BirthdayPlayerListState(
+                players,
+                current_time=state.current_time,
+                capacity_reached=state.capacity_reached,
+            )
+
+        def place_payload(state, incoming_mask, incoming_players):
+            available_mask = state.players[..., 0] == -1
+            slot_idx, source_idx, capacity_reached = (
+                BirthdayPlayerList._assign_slots(
+                    available_mask, incoming_mask)
+            )
+            valid = slot_idx >= 0
+            safe_slots = jnp.where(valid, slot_idx, 0)
+            safe_src = jnp.where(valid, source_idx, 0)
+            placed = incoming_players[safe_src]
+            placed = placed.at[:, 1].set(jnp.where(valid, safe_slots, placed[:, 1]))
+            players = state.players.at[safe_slots].set(
+                jnp.where(valid[:, None], placed, state.players[safe_slots]))
+            added_players = jnp.where(valid[:, None], placed, -1)
+            next_state = BirthdayPlayerListState(
+                players,
+                current_time=state.current_time,
+                capacity_reached=state.capacity_reached | capacity_reached,
+            )
+            return next_state, slot_idx, source_idx, added_players
         
         def init(initial_players):
             n_hot = jnp.arange(max_players) < initial_players
@@ -148,28 +271,32 @@ def birthday_player_list(max_players):
             players = jnp.where(remove[:,None], -1, state.players)
             
             # add
-            # - find locations for the newly added players
-            available_locations, = jnp.nonzero(
-                (players[...,0] == -1),
-                size=max_players,
-                fill_value=max_players,
+            available_mask = players[..., 0] == -1
+            incoming_mask = jnp.arange(max_players) < add
+            slot_idx, source_idx, capacity_reached = (
+                BirthdayPlayerList._assign_slots(
+                    available_mask, incoming_mask)
             )
-            add_locations = jnp.where(
-                jnp.arange(max_players) < add, available_locations, max_players)
-            available_count = jnp.sum(players[...,0] == -1)
-            # - update the player birthdays and locations
-            valid = add_locations < max_players
-            safe_locations = jnp.where(valid, add_locations, 0)
-            players = players.at[safe_locations,0].set(
-                jnp.where(valid, current_time, players[safe_locations,0]))
-            players = players.at[safe_locations,1].set(
-                jnp.where(valid, safe_locations, players[safe_locations,1]))
+            valid = slot_idx >= 0
+            safe_slots = jnp.where(valid, slot_idx, 0)
+            safe_src = jnp.where(valid, source_idx, 0)
+
+            incoming_birthdays = jnp.where(incoming_mask, current_time, -1)
+            incoming_loc = jnp.where(incoming_mask, -1, -1)
+            incoming_players = jnp.stack(
+                (incoming_birthdays, incoming_loc),
+                axis=1,
+            )
+            placed = incoming_players[safe_src]
+            placed = placed.at[:, 1].set(jnp.where(valid, safe_slots, placed[:, 1]))
+            players = players.at[safe_slots].set(
+                jnp.where(valid[:, None], placed, players[safe_slots]))
             
-            capacity_reached = add > available_count
+            add_locations = jnp.where(valid, slot_idx, max_players)
             next_state = BirthdayPlayerListState(
                 players, current_time, capacity_reached)
             added_players = jnp.where(
-                valid[:,None], players[safe_locations], -1)
+                valid[:, None], placed, -1)
             return next_state, add_locations, added_players
         
         def active(state):
@@ -191,6 +318,52 @@ def birthday_hometown_player_list(max_players, home_town=0, axis_name=None):
 
     @static_functions
     class BirthdayHometownPlayerList:
+        def _assign_slots(available_mask, incoming_mask):
+            available_idx, = jnp.nonzero(
+                available_mask, size=max_players, fill_value=-1)
+            incoming_idx, = jnp.nonzero(
+                incoming_mask, size=max_players, fill_value=-1)
+            available_valid = available_idx >= 0
+            incoming_valid = incoming_idx >= 0
+            available_count = jnp.sum(available_valid)
+            incoming_count = jnp.sum(incoming_valid)
+            take = jnp.arange(max_players) < jnp.minimum(
+                available_count, incoming_count)
+            slot_idx = jnp.where(take, available_idx, -1)
+            source_idx = jnp.where(take, incoming_idx, -1)
+            capacity_reached = incoming_count > available_count
+            return slot_idx, source_idx, capacity_reached
+
+        def remove(state, remove):
+            players = jnp.where(remove[:, None], -1, state.players)
+            return BirthdayHometownPlayerListState(
+                players,
+                current_time=state.current_time,
+                home_town=state.home_town,
+                capacity_reached=state.capacity_reached,
+            )
+
+        def place_payload(state, incoming_mask, incoming_players):
+            available_mask = state.players[..., 0] == -1
+            slot_idx, source_idx, capacity_reached = (
+                BirthdayHometownPlayerList._assign_slots(
+                    available_mask, incoming_mask)
+            )
+            valid = slot_idx >= 0
+            safe_slots = jnp.where(valid, slot_idx, 0)
+            safe_src = jnp.where(valid, source_idx, 0)
+            placed = incoming_players[safe_src]
+            placed = placed.at[:, 3].set(jnp.where(valid, safe_slots, placed[:, 3]))
+            players = state.players.at[safe_slots].set(
+                jnp.where(valid[:, None], placed, state.players[safe_slots]))
+            added_players = jnp.where(valid[:, None], placed, -1)
+            next_state = BirthdayHometownPlayerListState(
+                players,
+                current_time=state.current_time,
+                home_town=state.home_town,
+                capacity_reached=state.capacity_reached | capacity_reached,
+            )
+            return next_state, slot_idx, source_idx, added_players
         
         def init(initial_players):
             n_hot = jnp.arange(max_players) < initial_players
@@ -224,34 +397,39 @@ def birthday_hometown_player_list(max_players, home_town=0, axis_name=None):
             players = jnp.where(remove[:,None], -1, state.players)
             
             # add
-            # - find locations for the newly added players
-            available_locations, = jnp.nonzero(
-                (players[...,0] == -1),
-                size=max_players,
-                fill_value=max_players,
+            available_mask = players[..., 0] == -1
+            incoming_mask = jnp.arange(max_players) < add
+            slot_idx, source_idx, capacity_reached = (
+                BirthdayHometownPlayerList._assign_slots(
+                    available_mask, incoming_mask)
             )
-            add_locations = jnp.where(
-                jnp.arange(max_players) < add, available_locations, max_players)
-            available_count = jnp.sum(players[...,0] == -1)
-            # - update the player birthdays and locations
-            valid = add_locations < max_players
-            safe_locations = jnp.where(valid, add_locations, 0)
-            players = players.at[safe_locations,0].set(
-                jnp.where(valid, current_time, players[safe_locations,0]))
-            # birth_index (column 1) is permanent; set only on birth
-            players = players.at[safe_locations,1].set(
-                jnp.where(valid, safe_locations, players[safe_locations,1]))
-            players = players.at[safe_locations,2].set(
-                jnp.where(valid, state.home_town, players[safe_locations,2]))
-            # location (column 3) is current physical slot
-            players = players.at[safe_locations,3].set(
-                jnp.where(valid, safe_locations, players[safe_locations,3]))
-            
-            capacity_reached = add > available_count
+            valid = slot_idx >= 0
+            safe_slots = jnp.where(valid, slot_idx, 0)
+            safe_src = jnp.where(valid, source_idx, 0)
+
+            incoming_birthdays = jnp.where(incoming_mask, current_time, -1)
+            incoming_birth_index = jnp.where(incoming_mask, -1, -1)
+            incoming_home = jnp.where(incoming_mask, state.home_town, -1)
+            incoming_loc = jnp.where(incoming_mask, -1, -1)
+            incoming_players = jnp.stack(
+                (incoming_birthdays, incoming_birth_index,
+                 incoming_home, incoming_loc),
+                axis=1,
+            )
+            placed = incoming_players[safe_src]
+            placed = placed.at[:, 1].set(jnp.where(valid, safe_slots, placed[:, 1]))
+            placed = placed.at[:, 3].set(jnp.where(valid, safe_slots, placed[:, 3]))
+            players = players.at[safe_slots].set(
+                jnp.where(valid[:, None], placed, players[safe_slots]))
+
+            add_locations = jnp.where(valid, slot_idx, max_players)
             next_state = BirthdayHometownPlayerListState(
-                players, current_time, state.home_town, capacity_reached)
-            added_players = jnp.where(
-                valid[:,None], players[safe_locations], -1)
+                players,
+                current_time=current_time,
+                home_town=state.home_town,
+                capacity_reached=capacity_reached,
+            )
+            added_players = jnp.where(valid[:, None], placed, -1)
             return next_state, add_locations, added_players
         
         def active(state):
@@ -308,6 +486,26 @@ def player_family_tree(
             next_state = PlayerFamilyTreeState(player_state, parents)
             
             return next_state, child_locations, child_ids
+
+        def remove(state, remove_mask):
+            player_state = player_list.remove(state.player_state, remove_mask)
+            parents = jnp.where(
+                remove_mask[:, None, None], -1, state.parents)
+            return PlayerFamilyTreeState(player_state, parents)
+
+        def place_payload(state, incoming_mask, incoming_players, incoming_parents):
+            player_state, slot_idx, source_idx, added_players = (
+                player_list.place_payload(
+                    state.player_state, incoming_mask, incoming_players)
+            )
+            valid = slot_idx >= 0
+            safe_slots = jnp.where(valid, slot_idx, 0)
+            safe_src = jnp.where(valid, source_idx, 0)
+            placed_parents = incoming_parents[safe_src]
+            parents = state.parents.at[safe_slots].set(
+                jnp.where(valid[:, None, None], placed_parents, state.parents[safe_slots]))
+            next_state = PlayerFamilyTreeState(player_state, parents)
+            return next_state, slot_idx, source_idx, added_players
         
         def active(state):
             return player_list.active(state.player_state)
