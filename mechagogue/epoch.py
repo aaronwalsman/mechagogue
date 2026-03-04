@@ -69,7 +69,19 @@ def make_epoch_system(
         )
         print("epoch.make_epoch_system: is_pmapped =", system_is_pmapped)
         if system_is_pmapped:
-            init = _init
+            axis_name = getattr(system, "axis_name", "mesh")
+            devices = getattr(system, "devices", None)
+            ndev = getattr(system, "ndev", None)
+            if ndev is None:
+                ndev = len(devices) if devices is not None else jax.device_count()
+
+            def init(key):
+                keys = jrng.split(key, ndev)
+                return jax.pmap(
+                    _init,
+                    axis_name=axis_name,
+                    devices=devices,
+                )(keys)
         else:
             if verbose:
                 print('compiling init')
@@ -111,7 +123,19 @@ def make_epoch_system(
         if system.init_has_aux:
             abstract_state = abstract_state[0]
         if system_is_pmapped:
-            multi_step_report = _multi_step_report
+            axis_name = getattr(system, "axis_name", "mesh")
+            devices = getattr(system, "devices", None)
+            ndev = getattr(system, "ndev", None)
+            if ndev is None:
+                ndev = len(devices) if devices is not None else jax.device_count()
+
+            def multi_step_report(key, state):
+                keys = jrng.split(key, ndev)
+                return jax.pmap(
+                    _multi_step_report,
+                    axis_name=axis_name,
+                    devices=devices,
+                )(keys, state)
         else:
             if verbose:
                 print('compiling epoch step')
