@@ -67,7 +67,6 @@ def make_epoch_system(
             getattr(system, "is_pmapped", False) or
             getattr(getattr(system, "__class__", None), "is_pmapped", False)
         )
-        print("epoch.make_epoch_system: is_pmapped =", system_is_pmapped)
         if system_is_pmapped:
             axis_name = getattr(system, "axis_name", "mesh")
             devices = getattr(system, "devices", None)
@@ -75,12 +74,12 @@ def make_epoch_system(
             if ndev is None:
                 ndev = len(devices) if devices is not None else jax.device_count()
 
-            def init(key):
-                keys = jrng.split(key, ndev)
+            def init(key, _ndev=ndev, _axis_name=axis_name, _devices=devices):
+                keys = jrng.split(key, _ndev)
                 return jax.pmap(
                     _init,
-                    axis_name=axis_name,
-                    devices=devices,
+                    axis_name=_axis_name,
+                    devices=_devices,
                 )(keys)
         else:
             if verbose:
@@ -129,12 +128,18 @@ def make_epoch_system(
             if ndev is None:
                 ndev = len(devices) if devices is not None else jax.device_count()
 
-            def multi_step_report(key, state):
-                keys = jrng.split(key, ndev)
+            def multi_step_report(
+                key,
+                state,
+                _ndev=ndev,
+                _axis_name=axis_name,
+                _devices=devices,
+            ):
+                keys = jrng.split(key, _ndev)
                 return jax.pmap(
                     _multi_step_report,
-                    axis_name=axis_name,
-                    devices=devices,
+                    axis_name=_axis_name,
+                    devices=_devices,
                 )(keys, state)
         else:
             if verbose:
