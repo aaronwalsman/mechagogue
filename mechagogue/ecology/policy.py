@@ -28,7 +28,8 @@ def standardize_ecology_population(ecology_population):
         act=(('key', 'obs', 'state'), None),
         adapt=(('key', 'obs', 'state'), lambda state : state),
         traits=(('state',), None),
-        breed=(('key', 'state', 'parents', 'children'), lambda state : state)
+        breed=(('key', 'state', 'parents', 'children'), lambda state : state),
+        migrate=(('state', 'migrations'), lambda state : state),
     )
 
 def make_ecology_population(
@@ -75,6 +76,9 @@ def make_ecology_population(
                 child_states = jax.vmap(_breed)(keys, parent_states)
                 state = EcologyPopulation.set_members(
                     state, children, child_states)
+            return state
+
+        def migrate(state, migrations):
             return state
 
     return EcologyPopulation

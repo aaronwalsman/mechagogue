@@ -82,10 +82,15 @@ def make_natural_selection(
             # step the environment
             env_state, obs, active_players, parents, children = env.step(
                 env_key, state.env_state, actions, traits)
+
+            migrations = env.migrations(
+                state.env_state, actions, env_state)
             
             # update the model state
             population_state = population.breed(
                 breed_key, population_state, parents, children)
+            population_state = population.migrate(
+                population_state, migrations)
             
             # build the next state
             next_state = state.replace(

@@ -22,6 +22,7 @@ def standardize_poeg(poeg):
         poeg,
         init = (('key',), default_init),
         step = (('key', 'state', 'action', 'traits'), default_step),
+        migrations = (('state', 'action', 'next_state'), lambda : None),
     )
 
 def make_poeg(
@@ -54,6 +55,10 @@ def make_poeg(
         ('state',))
     family_info = standardize_args(family_info,
         ('state', 'action', 'next_state'))
+    migrations = standardize_args(
+        members.pop('migrations', lambda state, action, next_state: None),
+        ('state', 'action', 'next_state'),
+    )
     
     @static_functions
     class POEG:
@@ -89,6 +94,7 @@ def make_poeg(
     setattr(POEG, 'observe', observe)
     setattr(POEG, 'active_players', active_players)
     setattr(POEG, 'family_info', family_info)
+    setattr(POEG, 'migrations', migrations)
     
     for name, member in members.items():
         if callable(member):
