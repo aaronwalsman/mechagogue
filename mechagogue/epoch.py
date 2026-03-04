@@ -63,7 +63,11 @@ def make_epoch_system(
         example_key = jrng.key(0)
         abstract_key = jax.ShapeDtypeStruct(
             example_key.shape, example_key.dtype)
-        if getattr(system, "is_pmapped", False):
+        system_is_pmapped = (
+            getattr(system, "is_pmapped", False) or
+            getattr(getattr(system, "__class__", None), "is_pmapped", False)
+        )
+        if system_is_pmapped:
             init = _init
         else:
             if verbose:
@@ -105,7 +109,7 @@ def make_epoch_system(
         abstract_state = jax.eval_shape(system.init, abstract_key)
         if system.init_has_aux:
             abstract_state = abstract_state[0]
-        if getattr(system, "is_pmapped", False):
+        if system_is_pmapped:
             multi_step_report = _multi_step_report
         else:
             if verbose:
