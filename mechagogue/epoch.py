@@ -60,16 +60,19 @@ def make_epoch_system(
             
             return EpochState(system_state, 1)
         
-        if verbose:
-            print('compiling init')
-            t_pre_compile = time.time()
         example_key = jrng.key(0)
         abstract_key = jax.ShapeDtypeStruct(
             example_key.shape, example_key.dtype)
-        init = jax.jit(_init).lower(abstract_key).compile()
-        if verbose:
-            t_post_compile = time.time()
-            print(f'  took {t_post_compile-t_pre_compile:.04}s')
+        if getattr(system, "is_pmapped", False):
+            init = _init
+        else:
+            if verbose:
+                print('compiling init')
+                t_pre_compile = time.time()
+            init = jax.jit(_init).lower(abstract_key).compile()
+            if verbose:
+                t_post_compile = time.time()
+                print(f'  took {t_post_compile-t_pre_compile:.04}s')
         
         def _multi_step_report(key, state):
             
@@ -99,17 +102,20 @@ def make_epoch_system(
             
             return state, reports
         
-        if verbose:
-            print('compiling epoch step')
-            t_pre_compile = time.time()
         abstract_state = jax.eval_shape(system.init, abstract_key)
         if system.init_has_aux:
             abstract_state = abstract_state[0]
-        multi_step_report = jax.jit(_multi_step_report).lower(
-            abstract_key, abstract_state).compile()
-        if verbose:
-            t_post_compile = time.time()
-            print(f'  took {t_post_compile-t_pre_compile:.04}s')
+        if getattr(system, "is_pmapped", False):
+            multi_step_report = _multi_step_report
+        else:
+            if verbose:
+                print('compiling epoch step')
+                t_pre_compile = time.time()
+            multi_step_report = jax.jit(_multi_step_report).lower(
+                abstract_key, abstract_state).compile()
+            if verbose:
+                t_post_compile = time.time()
+                print(f'  took {t_post_compile-t_pre_compile:.04}s')
         
         def step(key, state):
             # get the current epoch
