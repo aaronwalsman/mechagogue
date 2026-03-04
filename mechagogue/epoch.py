@@ -74,10 +74,16 @@ def make_epoch_system(
             if ndev is None:
                 ndev = len(devices) if devices is not None else jax.device_count()
 
-            def init(key, _ndev=ndev, _axis_name=axis_name, _devices=devices):
+            def init(
+                key,
+                _ndev=ndev,
+                _axis_name=axis_name,
+                _devices=devices,
+                _init_fn=_init,
+            ):
                 keys = jrng.split(key, _ndev)
                 return jax.pmap(
-                    _init,
+                    _init_fn,
                     axis_name=_axis_name,
                     devices=_devices,
                 )(keys)
@@ -134,10 +140,11 @@ def make_epoch_system(
                 _ndev=ndev,
                 _axis_name=axis_name,
                 _devices=devices,
+                _step_fn=_multi_step_report,
             ):
                 keys = jrng.split(key, _ndev)
                 return jax.pmap(
-                    _multi_step_report,
+                    _step_fn,
                     axis_name=_axis_name,
                     devices=_devices,
                 )(keys, state)
