@@ -67,6 +67,7 @@ def make_epoch_system(
             getattr(system, "is_pmapped", False) or
             getattr(getattr(system, "__class__", None), "is_pmapped", False)
         )
+        print("epoch.make_epoch_system: is_pmapped =", system_is_pmapped)
         if system_is_pmapped:
             init = _init
         else:
